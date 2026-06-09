@@ -77,10 +77,8 @@ export default function OvertimeApplication() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
   const [overtimeTypes, setOvertimeTypes] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [currentEmployee, setCurrentEmployee] = useState(null);
   const [selectedOvertimeTypeCode, setSelectedOvertimeTypeCode] = useState('');
-  const [selectedAgentEmpNo, setSelectedAgentEmpNo] = useState('');
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -95,10 +93,6 @@ export default function OvertimeApplication() {
     () => overtimeTypes.find((item) => getTypeCode(item) === selectedOvertimeTypeCode) ?? null,
     [overtimeTypes, selectedOvertimeTypeCode]
   );
-
-  const agentOptions = useMemo(() => {
-    return employees.filter((employee) => employee.employeeNo && employee.employeeNo !== currentEmployee?.employeeNo);
-  }, [currentEmployee?.employeeNo, employees]);
 
   useEffect(() => {
     let isMounted = true;
@@ -125,7 +119,6 @@ export default function OvertimeApplication() {
         const nextOvertimeTypes = Array.isArray(overtimeTypeResponse.data) ? overtimeTypeResponse.data : [];
 
         setOvertimeTypes(nextOvertimeTypes);
-        setEmployees(employeeContext.employees);
         setCurrentEmployee(employeeContext.currentEmployee);
         setSelectedOvertimeTypeCode(getTypeCode(nextOvertimeTypes[0]) || '');
       } catch (error) {
@@ -247,7 +240,6 @@ export default function OvertimeApplication() {
         endTime: toDateTimeString(startDate, endTime),
         hours: calculateHours(startAt, endAt),
         reason: reason.trim() || null,
-        agentEmpNo: selectedAgentEmpNo || null,
         remark: remark.trim() || null,
       };
 
@@ -365,38 +357,18 @@ export default function OvertimeApplication() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">代理人姓名</label>
-                  <div className="relative">
-                    <select
-                      value={selectedAgentEmpNo}
-                      onChange={(event) => setSelectedAgentEmpNo(event.target.value)}
-                      disabled={loading || saving}
-                      className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
-                    >
-                      <option value="">不指定代理人</option>
-                      {agentOptions.map((employee) => (
-                        <option key={employee.employeeNo} value={employee.employeeNo}>
-                          {employee.employeeName}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" size={18} />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
                   <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">加班日期</label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
                     disabled={saving}
-                    className="w-full h-10 border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-[#dd771a] focus:border-[#dd771a] outline-none disabled:bg-surface-container-low"
+                    className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">開始時間</label>
                       <input
@@ -404,7 +376,7 @@ export default function OvertimeApplication() {
                         value={startTime}
                         onChange={(event) => setStartTime(event.target.value)}
                         disabled={saving}
-                        className="w-full h-10 border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-[#dd771a] focus:border-[#dd771a] outline-none disabled:bg-surface-container-low"
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
                     </div>
 
@@ -415,7 +387,7 @@ export default function OvertimeApplication() {
                         value={endTime}
                         onChange={(event) => setEndTime(event.target.value)}
                         disabled={saving}
-                        className="w-full h-10 border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-[#dd771a] focus:border-[#dd771a] outline-none disabled:bg-surface-container-low"
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
                     </div>
                   </div>
@@ -489,18 +461,18 @@ export default function OvertimeApplication() {
                 ) : null}
               </div>
 
-              <div className="pt-10 flex justify-end gap-4 border-t border-outline-variant mt-8">
+              <div className="mt-8 flex flex-nowrap justify-end gap-4 border-t border-outline-variant pt-10">
                 <button
                   type="button"
                   onClick={() => navigate('/dashboard')}
-                  className="px-10 py-2.5 border border-outline rounded-lg text-secondary hover:bg-surface-container transition-colors font-bold text-sm"
+                  className="flex-1 px-4 py-2.5 text-center border border-outline rounded-lg text-secondary hover:bg-surface-container transition-colors font-bold text-sm sm:flex-none sm:px-10"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={saving || loading}
-                  className="px-10 py-2.5 text-white rounded-lg shadow-md transition-all font-bold text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2.5 text-center text-white rounded-lg shadow-md transition-all font-bold text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none sm:px-10"
                   style={{ backgroundColor: ACCENT_COLOR }}
                 >
                   {saving ? '提交中...' : '提交申請'}

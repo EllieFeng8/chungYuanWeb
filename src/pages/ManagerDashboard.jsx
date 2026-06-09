@@ -14,6 +14,7 @@ function isOvertimeApplication(application) {
 export default function ManagerDashboard() {
     const navigate = useNavigate();
     const [accountRole, setAccountRole] = useState('');
+    const [agentAssignments, setAgentAssignments] = useState([]);
     const [counts, setCounts] = useState({
         pendingApprovals: 0,
         overtimeApplications: 0,
@@ -33,7 +34,11 @@ export default function ManagerDashboard() {
                 const isAdmin = accountDetail?.role === 'admin';
                 setAccountRole(accountDetail?.role || '');
 
-                const requests = [];
+                const requests = [
+                    getHrApplicationList({
+                        agentEmpNo: currentEmployee.employeeNo,
+                    }),
+                ];
                 if (isAdmin) {
                     console.log('[ManagerDashboard] GET /app-api/hr/applications');
                     requests.push(getHrApplicationList());
@@ -57,8 +62,20 @@ export default function ManagerDashboard() {
                     return;
                 }
 
+                const agentAssignmentResponse = responses[0];
+                if (!agentAssignmentResponse?.success) {
+                    throw new Error(agentAssignmentResponse?.error || '代理知會資料讀取失敗');
+                }
+
+                const nextAgentAssignments = Array.isArray(agentAssignmentResponse.data)
+                    ? agentAssignmentResponse.data.filter(
+                        (item) => String(item?.agentEmpNo || '').trim() === currentEmployee.employeeNo
+                    )
+                    : [];
+                setAgentAssignments(nextAgentAssignments);
+
                 if (isAdmin) {
-                    const approvalResponse = responses[0];
+                    const approvalResponse = responses[1];
                     if (!approvalResponse?.success) {
                         throw new Error(approvalResponse?.error || '待審核資料讀取失敗');
                     }
@@ -74,7 +91,7 @@ export default function ManagerDashboard() {
                     return;
                 }
 
-                const [approvalResponse, myApplicationsResponse] = responses;
+                const [, approvalResponse, myApplicationsResponse] = responses;
                 if (!approvalResponse?.success) {
                     throw new Error(approvalResponse?.error || '待審核資料讀取失敗');
                 }
@@ -104,6 +121,7 @@ export default function ManagerDashboard() {
                     pendingMyApplications: 0,
                     needSupplementMyApplications: 0,
                 });
+                setAgentAssignments([]);
                 void Swal.fire({
                     icon: 'error',
                     title: '讀取失敗',
@@ -176,9 +194,30 @@ export default function ManagerDashboard() {
         ];
     }, [accountRole, counts]);
 
+    const agentAlertText = useMemo(() => {
+        if (!agentAssignments.length) {
+            return '';
+        }
+
+        const firstAssignment = agentAssignments[0];
+        const firstApplicantName = firstAssignment?.applicantName || firstAssignment?.applicantEmpNo || '-';
+        const firstTypeName = getApplicationTypeName(firstAssignment);
+
+        if (agentAssignments.length === 1) {
+            return `${firstApplicantName} 的 ${firstTypeName} 申請指定您為代理人，僅知會不需確認。`;
+        }
+
+        return `${firstApplicantName} 等 ${agentAssignments.length} 筆申請指定您為代理人，僅知會不需確認。`;
+    }, [agentAssignments]);
+
     return (
         <Layout title="首頁">
         <div className="page-container">
+            {!loading && agentAssignments.length ? (
+                <div className="mb-6 rounded-xl border border-tertiary-container/30 bg-tertiary-fixed px-5 py-4 text-on-tertiary-container">
+                    <p className="text-base font-medium">{agentAlertText}</p>
+                </div>
+            ) : null}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                 {stats.map((stat, idx) => (
                     <motion.div

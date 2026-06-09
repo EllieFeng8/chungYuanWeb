@@ -384,7 +384,7 @@ export default function LeaveApplication() {
                 <div className="hidden md:block"></div>
 
                 <div className="md:col-span-2">
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">開始日期</label>
                       <input
@@ -392,7 +392,7 @@ export default function LeaveApplication() {
                         value={startDate}
                         onChange={(event) => setStartDate(event.target.value)}
                         disabled={saving}
-                        className="w-full h-10 border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-primary outline-none disabled:bg-surface-container-low"
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
                     </div>
 
@@ -403,14 +403,14 @@ export default function LeaveApplication() {
                         value={endDate}
                         onChange={(event) => setEndDate(event.target.value)}
                         disabled={saving}
-                        className="w-full h-10 border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-primary outline-none disabled:bg-surface-container-low"
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
                     </div>
                   </div>
                 </div>
 
                 <div className="md:col-span-2">
-                  <div className="grid grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div className="space-y-2">
                       <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">開始時間</label>
                       <input
@@ -418,7 +418,7 @@ export default function LeaveApplication() {
                         value={startTime}
                         onChange={(event) => setStartTime(event.target.value)}
                         disabled={saving}
-                        className="w-full h-10 border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-primary outline-none disabled:bg-surface-container-low"
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
                     </div>
 
@@ -429,7 +429,7 @@ export default function LeaveApplication() {
                         value={endTime}
                         onChange={(event) => setEndTime(event.target.value)}
                         disabled={saving}
-                        className="w-full h-10 border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-primary outline-none disabled:bg-surface-container-low"
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
                     </div>
                   </div>
@@ -502,18 +502,18 @@ export default function LeaveApplication() {
                 ) : null}
               </div>
 
-              <div className="pt-10 flex justify-end gap-4 border-t border-outline-variant mt-8">
+              <div className="mt-8 flex flex-nowrap justify-end gap-4 border-t border-outline-variant pt-10">
                 <button
                   type="button"
                   onClick={() => navigate('/dashboard')}
-                  className="px-10 py-2.5 border border-outline rounded-lg text-secondary hover:bg-surface-container transition-colors font-bold text-sm"
+                  className="flex-1 px-4 py-2.5 text-center border border-outline rounded-lg text-secondary hover:bg-surface-container transition-colors font-bold text-sm sm:flex-none sm:px-10"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={saving || loading}
-                  className="px-10 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-container shadow-md transition-all font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2.5 text-center bg-primary text-white rounded-lg hover:bg-primary-container shadow-md transition-all font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none sm:px-10"
                 >
                   {saving ? '提交中...' : '提交申請'}
                 </button>

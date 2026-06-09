@@ -88,6 +88,12 @@ export default function ApprovalDetail() {
         return stateSeqNo || searchParams.get('seqNo') || '';
     }, [location.state, searchParams]);
 
+    const hasBeenReviewed = (status) => Boolean(
+        status
+        && status !== 'pending'
+        && status !== 'agent_pending'
+    );
+
     useEffect(() => {
         let isMounted = true;
 
@@ -158,11 +164,7 @@ export default function ApprovalDetail() {
                 setActorEmpNo(nextActorEmpNo);
                 void loadAttachments(nextApplication?.seqNo || applicationSeqNo);
 
-                if (
-                    nextApplication?.status
-                    && nextApplication.status !== 'pending'
-                    && nextApplication.status !== 'agent_pending'
-                ) {
+                if (hasBeenReviewed(nextApplication?.status)) {
                     void Swal.fire({
                         icon: 'info',
                         title: '已審核過',
@@ -214,6 +216,7 @@ export default function ApprovalDetail() {
         && actorEmpNo
         && application.status === 'pending'
     );
+    const isReviewed = hasBeenReviewed(application?.status);
     const isSelfApplication = Boolean(
         application?.applicantEmpNo
         && actorEmpNo
@@ -294,6 +297,9 @@ export default function ApprovalDetail() {
     }
 
     const handleApproveApplication = async () => {
+        if (!canReview) {
+            return;
+        }
         if (isSelfApplication) {
             showSelfApprovalAlert();
             return;
@@ -354,6 +360,9 @@ export default function ApprovalDetail() {
     };
 
     const handleReturnApplication = async () => {
+        if (!canReview) {
+            return;
+        }
         if (isSelfApplication) {
             showSelfApprovalAlert();
             return;
@@ -425,8 +434,11 @@ export default function ApprovalDetail() {
                 <div className="flex items-center gap-3">
                     <button
                         className="btn-tertiary"
-                        disabled={!canReview || submitting}
+                        disabled={!canReview || isReviewed || submitting}
                         onClick={() => {
+                            if (!canReview || isReviewed) {
+                                return;
+                            }
                             if (isSelfApplication) {
                                 showSelfApprovalAlert();
                                 return;
@@ -436,8 +448,8 @@ export default function ApprovalDetail() {
                     >
                         退回補件
                     </button>
-                    <button className="btn-error" disabled={!canReview || submitting} onClick={handleRejectApplication}>駁回申請</button>
-                    <button className="btn-primary" disabled={!canReview || submitting} onClick={handleApproveApplication}>核准申請</button>
+                    <button className="btn-error" disabled={!canReview || isReviewed || submitting} onClick={handleRejectApplication}>駁回申請</button>
+                    <button className="btn-primary" disabled={!canReview || isReviewed || submitting} onClick={handleApproveApplication}>核准申請</button>
                 </div>
             </div>
 
@@ -662,7 +674,7 @@ export default function ApprovalDetail() {
                                 >
                                     取消
                                 </button>
-                                <button className="btn-primary" disabled={submitting} onClick={handleReturnApplication}>確認退回</button>
+                                <button className="btn-primary" disabled={!canReview || isReviewed || submitting} onClick={handleReturnApplication}>確認退回</button>
                             </div>
                         </motion.div>
                     </div>

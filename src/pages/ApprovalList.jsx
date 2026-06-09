@@ -1,6 +1,5 @@
 import {
     Download,
-    Edit3,
     Clock,
     CalendarDays,
     ChevronLeft,
@@ -8,7 +7,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import Layout from '../components/Layout';
 import { getDepartmentList, getDeptApprovalList, getHrApplicationList } from '../lib/cfctApi';
@@ -156,6 +155,7 @@ export default function ApprovalList() {
     const [approvalList, setApprovalList] = useState([]);
     const [departmentOptions, setDepartmentOptions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -165,6 +165,7 @@ export default function ApprovalList() {
             try {
                 const { currentEmployee, accountDetail } = await getCurrentEmployeeContext();
                 const isAdmin = accountDetail?.role === 'admin';
+                setIsAdmin(isAdmin);
 
                 if (isAdmin) {
                     console.log('[ApprovalList] GET /app-api/hr/applications');
@@ -464,14 +465,14 @@ export default function ApprovalList() {
                             </button>
                         </div>
 
-                        <div className="flex flex-nowrap items-center justify-end gap-3 overflow-x-auto">
-                            <div className="flex flex-none items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
                                 <label className="text-xs text-secondary whitespace-nowrap">部門:</label>
                                 <select
                                     value={departmentFilter}
                                     onChange={(event) => setDepartmentFilter(event.target.value)}
                                     style={{ width: departmentSelectWidth }}
-                                    className="h-10 border border-outline-variant rounded-lg px-3 text-sm bg-surface-container-lowest focus:ring-1 focus:ring-primary outline-none"
+                                    className="h-10 max-w-full border border-outline-variant rounded-lg px-3 text-sm bg-surface-container-lowest focus:ring-1 focus:ring-primary outline-none"
                                 >
                                     <option value="all">所有部門</option>
                                     {departmentOptions.map((department) => (
@@ -479,9 +480,9 @@ export default function ApprovalList() {
                                     ))}
                                 </select>
                             </div>
-                            <div className="flex flex-none items-center gap-2 whitespace-nowrap">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <label className="text-xs text-secondary whitespace-nowrap">申請起迄日期:</label>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <div className="relative">
                                         <input
                                             type="date"
@@ -503,38 +504,39 @@ export default function ApprovalList() {
                                     </div>
                                 </div>
                             </div>
-                            <button
-                                type="button"
-                                onClick={handleDownload}
-                                className="flex w-[72px] flex-none items-center justify-center gap-1 text-sm font-medium text-slate-400 transition-colors hover:text-brand"
-                            >
-                                <Download className="w-4 h-4" />
-                                匯出
-                            </button>
+                            {isAdmin && (
+                                <button
+                                    type="button"
+                                    onClick={handleDownload}
+                                    className="flex w-[72px] flex-none items-center justify-center gap-1 text-sm font-medium text-slate-400 transition-colors hover:text-brand"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    匯出
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                <div className="overflow-x-auto overflow-y-hidden">
-                    <table className="min-w-[1180px] w-full table-fixed text-left border-collapse">
+                <div className="overflow-x-auto overflow-y-hidden xl:hidden">
+                    <table className="min-w-[980px] w-full table-fixed text-left border-collapse">
                         <thead>
                         <tr className="bg-surface-container-low border-b border-outline-variant">
-                            <th className="sticky left-0 z-20 w-[120px] bg-surface-container-low px-4 py-4 text-xs font-bold text-secondary tracking-wider">部門</th>
-                            <th className="sticky left-[120px] z-20 w-[160px] bg-surface-container-low px-4 py-4 text-xs font-bold text-secondary tracking-wider">員工資訊</th>
+                            <th className="sticky left-0 z-20 w-[110px] bg-surface-container-low px-4 py-4 text-xs font-bold text-secondary tracking-wider">部門</th>
+                            <th className="sticky left-[110px] z-20 w-[140px] bg-surface-container-low px-4 py-4 text-xs font-bold text-secondary tracking-wider">員工資訊</th>
                             <th className="w-[12%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請日期時間</th>
                             <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請類型</th>
                             <th className="w-[16%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">日期時間</th>
                             <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人名稱</th>
                             <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人狀態</th>
                             <th className="w-[9%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">狀態</th>
-                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">詳情</th>
-                            <th className="w-[5%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">操作</th>
+                            <th className="w-[13%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">詳情</th>
                         </tr>
                         </thead>
                         <tbody className="divide-y divide-outline-variant">
                         {loading ? (
                             <tr>
-                                <td colSpan={10} className="px-4 py-10 text-center text-sm text-secondary">資料讀取中...</td>
+                                <td colSpan={9} className="px-4 py-10 text-center text-sm text-secondary">資料讀取中...</td>
                             </tr>
                         ) : paginatedApprovalList.length ? (
                             paginatedApprovalList.map((item, idx) => (
@@ -544,7 +546,7 @@ export default function ApprovalList() {
                                     onClick={() => handleRowClick(item)}
                                 >
                                     <td className="sticky left-0 z-10 bg-surface-container-lowest px-4 py-4 text-sm break-words group-hover:bg-surface-container-low">{item.department}</td>
-                                    <td className="sticky left-[120px] z-10 bg-surface-container-lowest px-4 py-4 group-hover:bg-surface-container-low">
+                                    <td className="sticky left-[110px] z-10 bg-surface-container-lowest px-4 py-4 group-hover:bg-surface-container-low">
                                         <div className="flex items-center gap-3">
                                             <span className="text-sm font-medium">{item.applicant}</span>
                                         </div>
@@ -578,27 +580,87 @@ export default function ApprovalList() {
                     </span>
                                     </td>
                                     <td className="px-4 py-4">
-                                        <p className="line-clamp-2 text-sm text-secondary break-words" title={item.detail}>
+                                        <p className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-secondary" title={item.detail}>
                                             {item.detail}
                                         </p>
-                                    </td>
-                                    <td className="px-4 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <Link
-                                                to={`/approvals/detail?seqNo=${encodeURIComponent(item.seqNo)}`}
-                                                className="p-1 hover:text-primary transition-colors"
-                                                onClick={(event) => event.stopPropagation()}
-                                            >
-                                                <Edit3 size={20} />
-                                            </Link>
-
-                                        </div>
                                     </td>
                                 </tr>
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={10} className="px-4 py-10 text-center text-sm text-secondary">查無待審批資料</td>
+                                <td colSpan={9} className="px-4 py-10 text-center text-sm text-secondary">查無待審批資料</td>
+                            </tr>
+                        )}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div className="hidden xl:block">
+                    <table className="w-full table-fixed text-left border-collapse">
+                        <thead>
+                        <tr className="bg-surface-container-low border-b border-outline-variant">
+                            <th className="w-[11%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">部門</th>
+                            <th className="w-[12%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">員工資訊</th>
+                            <th className="w-[13%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請日期時間</th>
+                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請類型</th>
+                            <th className="w-[15%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">日期時間</th>
+                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人名稱</th>
+                            <th className="w-[11%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人狀態</th>
+                            <th className="w-[8%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">狀態</th>
+                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">詳情</th>
+                        </tr>
+                        </thead>
+                        <tbody className="divide-y divide-outline-variant">
+                        {loading ? (
+                            <tr>
+                                <td colSpan={9} className="px-4 py-10 text-center text-sm text-secondary">資料讀取中...</td>
+                            </tr>
+                        ) : paginatedApprovalList.length ? (
+                            paginatedApprovalList.map((item, idx) => (
+                                <tr
+                                    key={item.seqNo || idx}
+                                    className="hover:bg-surface-container-low transition-colors cursor-pointer"
+                                    onClick={() => handleRowClick(item)}
+                                >
+                                    <td className="px-4 py-4 text-sm break-words">{item.department}</td>
+                                    <td className="px-4 py-4 text-sm font-medium break-words">{item.applicant}</td>
+                                    <td className="px-4 py-4 text-xs text-on-surface-variant leading-relaxed">
+                                        {String(item.requestTime || '-').split(' ').map((part, i) => (
+                                            <div key={i}>{part}</div>
+                                        ))}
+                                    </td>
+                                    <td className="px-4 py-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w-2 h-2 rounded-full ${item.typeColor}`}></span>
+                                            <span className="text-sm break-words">{item.type}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 text-xs text-on-surface-variant leading-relaxed">
+                                        {String(item.duration || '-').split(' - ').map((part, i) => (
+                                            <div key={i}>{part}</div>
+                                        ))}
+                                    </td>
+                                    <td className="px-4 py-4 text-sm break-words">{item.agentName}</td>
+                                    <td className="px-4 py-4">
+                                        <span className={`inline-flex whitespace-nowrap items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${getAgentStatusStyles(item.agentStatus)}`}>
+                                            {item.agentStatus}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-4">
+                                        <span className={`inline-flex whitespace-nowrap items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${getApplicationStatusStyles(STATUS_QUERY_MAP[item.status] || item.raw?.status)}`}>
+                                            {item.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-4">
+                                        <p className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-secondary" title={item.detail}>
+                                            {item.detail}
+                                        </p>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={9} className="px-4 py-10 text-center text-sm text-secondary">查無待審批資料</td>
                             </tr>
                         )}
                         </tbody>

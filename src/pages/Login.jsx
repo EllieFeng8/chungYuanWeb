@@ -175,22 +175,22 @@ export default function Login() {
         <div className="p-6 sm:p-10">
           <header className="mb-6 sm:mb-8">
             <h2 className="text-xl sm:text-2xl font-bold text-on-surface mb-2">帳號登入</h2>
-            <p className="text-sm text-on-surface-variant">目前以前置帳號 API 做權限分流，尚未接上正式密碼驗證。</p>
+            {/*<p className="text-sm text-on-surface-variant">目前以前置帳號 API 做權限分流，尚未接上正式密碼驗證。</p>*/}
           </header>
 
-          <div className={`mb-6 rounded-lg border p-4 flex gap-3 ${apiStatus.reachable && apiStatus.configured ? 'bg-primary/5 border-primary/20' : 'bg-error-container border-error/20'}`}>
-            <AlertCircle className={`${apiStatus.reachable && apiStatus.configured ? 'text-primary' : 'text-error'} shrink-0`} size={20} />
-            <div className="flex flex-col">
-              <span className={`text-sm font-bold ${apiStatus.reachable && apiStatus.configured ? 'text-primary' : 'text-error'}`}>
-                {apiStatus.reachable && apiStatus.configured ? 'API 連線正常' : 'API 尚未就緒'}
-              </span>
-              <p className={`text-xs ${apiStatus.reachable && apiStatus.configured ? 'text-on-surface-variant' : 'text-on-error-container'}`}>
-                {apiStatus.reachable && apiStatus.configured
-                  ? `已載入 ${accounts.length} 筆帳號資料，可依角色分流。`
-                  : '請先啟動 BFF，並設定 CFCT_API_KEY。'}
-              </p>
-            </div>
-          </div>
+          {/*<div className={`mb-6 rounded-lg border p-4 flex gap-3 ${apiStatus.reachable && apiStatus.configured ? 'bg-primary/5 border-primary/20' : 'bg-error-container border-error/20'}`}>*/}
+          {/*  <AlertCircle className={`${apiStatus.reachable && apiStatus.configured ? 'text-primary' : 'text-error'} shrink-0`} size={20} />*/}
+          {/*  <div className="flex flex-col">*/}
+          {/*    <span className={`text-sm font-bold ${apiStatus.reachable && apiStatus.configured ? 'text-primary' : 'text-error'}`}>*/}
+          {/*      {apiStatus.reachable && apiStatus.configured ? 'API 連線正常' : 'API 尚未就緒'}*/}
+          {/*    </span>*/}
+          {/*    <p className={`text-xs ${apiStatus.reachable && apiStatus.configured ? 'text-on-surface-variant' : 'text-on-error-container'}`}>*/}
+          {/*      {apiStatus.reachable && apiStatus.configured*/}
+          {/*        ? `已載入 ${accounts.length} 筆帳號資料，可依角色分流。`*/}
+          {/*        : '請先啟動 BFF，並設定 CFCT_API_KEY。'}*/}
+          {/*    </p>*/}
+          {/*  </div>*/}
+          {/*</div>*/}
 
           {error ? (
             <div className="bg-error-container border border-error/20 p-4 rounded-lg flex gap-3 mb-8">

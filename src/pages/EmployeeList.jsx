@@ -67,6 +67,31 @@ export default function EmployeeList() {
         });
     }, [departmentFilter, employees, statusFilter]);
 
+    function handleExportEmployees() {
+        const headers = ['員工姓名', '員編', '部門', '系統角色', '狀態', 'LINE 名稱'];
+        const rows = filteredEmployees.map((employee) => [
+            employee.employeeName || '-',
+            employee.employeeNo || '-',
+            employee.departmentName || '-',
+            getRoleLabel(employee.role),
+            getWorkStatusLabel(employee.workStatus),
+            employee.lineName || '-',
+        ]);
+
+        const csvContent = [headers, ...rows]
+            .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+
+        link.href = url;
+        link.download = 'employee-list.csv';
+        link.click();
+        window.URL.revokeObjectURL(url);
+    }
+
     async function loadEmployees() {
         setLoading(true);
         try {
@@ -175,11 +200,11 @@ export default function EmployeeList() {
                     </div>
                     <button
                         type="button"
-                        onClick={() => void loadEmployees()}
+                        onClick={handleExportEmployees}
                         className="text-slate-400 hover:text-brand flex items-center text-sm font-medium transition-colors gap-1"
                     >
                         <Download className="w-4 h-4" />
-                        重新整理
+                        匯出
                     </button>
                 </div>
 
@@ -196,7 +221,7 @@ export default function EmployeeList() {
                             <th className="px-6 py-4 border-b border-slate-100 text-center">編輯</th>
                         </tr>
                         </thead>
-                        <tbody className="text-sm text-slate-600 divide-y divide-slate-100">
+                        <tbody className="text-base text-slate-600 divide-y divide-slate-100">
                         {loading ? (
                             <tr>
                                 <td className="px-6 py-10 text-center text-slate-400" colSpan={6}>載入中...</td>
@@ -208,11 +233,11 @@ export default function EmployeeList() {
                                 className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                             >
                                 <td className="sticky left-0 z-10 bg-white px-6 py-4 font-semibold text-slate-800 group-hover:bg-slate-50/50">{emp.employeeName || '-'}</td>
-                                <td className="px-6 py-4 text-slate-500 font-mono text-xs">{emp.employeeNo || '-'}</td>
+                                <td className="px-6 py-4 text-slate-500 font-mono text-sm">{emp.employeeNo || '-'}</td>
                                 <td className="px-6 py-4">{emp.departmentName || '-'}</td>
                                 <td className="px-6 py-4">
                     <span className={cn(
-                        "px-2 py-0.5 rounded text-[10px] font-bold tracking-wide inline-block",
+                        "px-2 py-0.5 rounded text-xs font-bold tracking-wide inline-block",
                         emp.role === 'admin' ? 'bg-brand/10 text-brand' :
                         emp.role === 'manager' ? 'bg-slate-100 text-slate-600' :
                         emp.role === 'block' ? 'bg-red-50 text-red-500' :
@@ -223,7 +248,7 @@ export default function EmployeeList() {
                                 </td>
                                 <td className="px-6 py-4">
                     <span className={cn(
-                        "px-2 py-0.5 rounded text-[10px] font-bold tracking-wide inline-block",
+                        "px-2 py-0.5 rounded text-xs font-bold tracking-wide inline-block",
                         emp.workStatus === 'active' ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
                     )}>
                       {getWorkStatusLabel(emp.workStatus)}
