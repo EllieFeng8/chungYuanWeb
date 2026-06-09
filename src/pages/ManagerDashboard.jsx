@@ -1,64 +1,184 @@
-import { Info, X, ClipboardCheck, FileClock, FileWarning, ChevronRight } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
+import { CalendarDays, ClipboardCheck, Clock, FileClock, FileWarning } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
+import { getDeptApprovalList, getHrApplicationList, getMyApplications } from '../lib/cfctApi';
+import { getApplicationTypeName, getCurrentEmployeeContext } from '../lib/applicationUtils';
 
-const stats = [
-    {
-        label: '待審核',
-        count: 12,
-        path: '/approvals',
-        color: 'primary',
-        icon: ClipboardCheck,
-        bgColor: 'bg-primary/10',
-        borderColor: 'border-primary',
-    },
-    {
-        label: '審核中',
-        count: 12,
-        path: '/records',
-        color: 'tertiary',
-        icon: FileClock,
-        bgColor: 'bg-tertiary-container/10',
-        borderColor: 'border-tertiary',
-    },
-    {
-        label: '待補件',
-        count: 1,
-        color: 'secondary',
-        icon: FileWarning,
-        bgColor: 'bg-secondary-container/20',
-        borderColor: 'border-secondary',
-    },
-];
-
-const recentApplications = [
-    { id: '#REQ-2023-089', applicant: '張曉明', type: '採購申請', date: '2023/10/24', status: '待審核', statusColor: 'primary' },
-    { id: '#REQ-2023-088', applicant: '李小華', type: '加班申請', date: '2023/10/23', status: '審核中', statusColor: 'tertiary' },
-];
+function isOvertimeApplication(application) {
+    return String(getApplicationTypeName(application) || '').includes('加班');
+}
 
 export default function ManagerDashboard() {
     const navigate = useNavigate();
+    const [accountRole, setAccountRole] = useState('');
+    const [counts, setCounts] = useState({
+        pendingApprovals: 0,
+        overtimeApplications: 0,
+        leaveApplications: 0,
+        pendingMyApplications: 0,
+        needSupplementMyApplications: 0,
+    });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        async function loadDashboardCounts() {
+            setLoading(true);
+            try {
+                const { currentEmployee, accountDetail } = await getCurrentEmployeeContext();
+                const isAdmin = accountDetail?.role === 'admin';
+                setAccountRole(accountDetail?.role || '');
+
+                const requests = [];
+                if (isAdmin) {
+                    console.log('[ManagerDashboard] GET /app-api/hr/applications');
+                    requests.push(getHrApplicationList());
+                } else {
+                    console.log('[ManagerDashboard] GET /app-api/approval/dept-list', {
+                        employeeNo: currentEmployee.employeeNo,
+                        status: '',
+                    });
+                    console.log('[ManagerDashboard] GET /app-api/applications/mine', {
+                        employeeNo: currentEmployee.employeeNo,
+                    });
+                    requests.push(
+                        getDeptApprovalList(currentEmployee.employeeNo, ''),
+                        getMyApplications(currentEmployee.employeeNo)
+                    );
+                }
+
+                const responses = await Promise.all(requests);
+
+                if (!isMounted) {
+                    return;
+                }
+
+                if (isAdmin) {
+                    const approvalResponse = responses[0];
+                    if (!approvalResponse?.success) {
+                        throw new Error(approvalResponse?.error || '待審核資料讀取失敗');
+                    }
+
+                    const approvalItems = Array.isArray(approvalResponse.data) ? approvalResponse.data : [];
+                    setCounts({
+                        pendingApprovals: approvalItems.filter((item) => item?.status === 'pending').length,
+                        overtimeApplications: approvalItems.filter((item) => isOvertimeApplication(item)).length,
+                        leaveApplications: approvalItems.filter((item) => !isOvertimeApplication(item)).length,
+                        pendingMyApplications: 0,
+                        needSupplementMyApplications: 0,
+                    });
+                    return;
+                }
+
+                const [approvalResponse, myApplicationsResponse] = responses;
+                if (!approvalResponse?.success) {
+                    throw new Error(approvalResponse?.error || '待審核資料讀取失敗');
+                }
+                if (!myApplicationsResponse?.success) {
+                    throw new Error(myApplicationsResponse?.error || '申請紀錄讀取失敗');
+                }
+
+                const approvalItems = Array.isArray(approvalResponse.data) ? approvalResponse.data : [];
+                const myApplications = Array.isArray(myApplicationsResponse.data) ? myApplicationsResponse.data : [];
+
+                setCounts({
+                    pendingApprovals: approvalItems.filter((item) => item?.status === 'pending').length,
+                    overtimeApplications: 0,
+                    leaveApplications: 0,
+                    pendingMyApplications: myApplications.filter((item) => item?.status === 'pending').length,
+                    needSupplementMyApplications: myApplications.filter((item) => item?.status === 'need_supplement').length,
+                });
+            } catch (error) {
+                if (!isMounted) {
+                    return;
+                }
+
+                setCounts({
+                    pendingApprovals: 0,
+                    overtimeApplications: 0,
+                    leaveApplications: 0,
+                    pendingMyApplications: 0,
+                    needSupplementMyApplications: 0,
+                });
+                void Swal.fire({
+                    icon: 'error',
+                    title: '讀取失敗',
+                    text: error instanceof Error ? error.message : '無法讀取首頁統計資料',
+                });
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        }
+
+        void loadDashboardCounts();
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    const stats = useMemo(() => {
+        const pendingCard = {
+            label: '待審核',
+            count: counts.pendingApprovals,
+            path: '/approvals',
+            color: 'primary',
+            icon: ClipboardCheck,
+            bgColor: 'bg-primary/10',
+        };
+
+        if (accountRole === 'admin') {
+            return [
+                pendingCard,
+                {
+                    label: '加班申請總數',
+                    count: counts.overtimeApplications,
+                    path: '/approvals',
+                    color: 'tertiary',
+                    icon: Clock,
+                    bgColor: 'bg-tertiary-container/10',
+                },
+                {
+                    label: '請假申請總數',
+                    count: counts.leaveApplications,
+                    path: '/approvals',
+                    color: 'blue-500',
+                    icon: CalendarDays,
+                    bgColor: 'bg-blue-100',
+                },
+            ];
+        }
+
+        return [
+            pendingCard,
+            {
+                label: '審核中',
+                count: counts.pendingMyApplications,
+                path: '/records',
+                color: 'tertiary',
+                icon: FileClock,
+                bgColor: 'bg-tertiary-container/10',
+            },
+            {
+                label: '待補件',
+                count: counts.needSupplementMyApplications,
+                path: '/records',
+                color: 'secondary',
+                icon: FileWarning,
+                bgColor: 'bg-secondary-container/20',
+            },
+        ];
+    }, [accountRole, counts]);
 
     return (
         <Layout title="首頁">
         <div className="page-container">
-
-
-            <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="bg-error-container border border-error/20 rounded-lg p-4 flex items-center justify-between shadow-sm"
-            >
-                <div className="flex items-center gap-3">
-                    <Info className="text-error" size={20} />
-                    <p className="text-sm font-medium text-on-error-container">A先生代理請求通知</p>
-                </div>
-                <button className="text-on-error-container hover:bg-black/5 p-1 rounded transition-colors">
-                    <X size={18} />
-                </button>
-            </motion.div>
-
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                 {stats.map((stat, idx) => (
                     <motion.div
@@ -77,7 +197,9 @@ export default function ManagerDashboard() {
                                 </div>
                                 <div>
                                     <h3 className="text-secondary font-medium">{stat.label}</h3>
-                                    <p className={`text-5xl font-extrabold text-${stat.color} mt-2`}>{stat.count}</p>
+                                    <p className={`text-5xl font-extrabold text-${stat.color} mt-2`}>
+                                        {loading ? '-' : stat.count}
+                                    </p>
                                 </div>
                             </div>
                             <div className="hidden md:block opacity-5 group-hover:opacity-10 transition-opacity absolute right-8">
@@ -87,44 +209,6 @@ export default function ManagerDashboard() {
                     </motion.div>
                 ))}
             </div>
-
-            {/*<section className="bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden shadow-sm">*/}
-            {/*    <div className="px-6 py-4 border-b border-outline-variant flex justify-between items-center">*/}
-            {/*        <h3 className="text-lg font-semibold text-on-surface">最近申請</h3>*/}
-            {/*        <Link to="/approvals" className="text-primary font-bold hover:underline inline-flex items-center gap-1 group">*/}
-            {/*            查看全部*/}
-            {/*            <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />*/}
-            {/*        </Link>*/}
-            {/*    </div>*/}
-            {/*    <div className="overflow-x-auto">*/}
-            {/*        <table className="w-full text-left border-collapse">*/}
-            {/*            <thead className="bg-surface-container-low">*/}
-            {/*            <tr>*/}
-            {/*                <th className="px-6 py-3 text-xs font-bold text-secondary uppercase tracking-wider">申請編號</th>*/}
-            {/*                <th className="px-6 py-3 text-xs font-bold text-secondary uppercase tracking-wider">申請人</th>*/}
-            {/*                <th className="px-6 py-3 text-xs font-bold text-secondary uppercase tracking-wider">類別</th>*/}
-            {/*                <th className="px-6 py-3 text-xs font-bold text-secondary uppercase tracking-wider">日期</th>*/}
-            {/*                <th className="px-6 py-3 text-xs font-bold text-secondary uppercase tracking-wider">狀態</th>*/}
-            {/*            </tr>*/}
-            {/*            </thead>*/}
-            {/*            <tbody className="divide-y divide-outline-variant">*/}
-            {/*            {recentApplications.map((app) => (*/}
-            {/*                <tr key={app.id} className="hover:bg-surface-container-lowest transition-colors group cursor-pointer">*/}
-            {/*                    <td className="px-6 py-4 text-sm font-medium group-hover:text-primary transition-colors">{app.id}</td>*/}
-            {/*                    <td className="px-6 py-4 text-sm">{app.applicant}</td>*/}
-            {/*                    <td className="px-6 py-4 text-sm">{app.type}</td>*/}
-            {/*                    <td className="px-6 py-4 text-sm">{app.date}</td>*/}
-            {/*                    <td className="px-6 py-4">*/}
-            {/*        <span className={`px-3 py-1 bg-${app.statusColor}/10 text-${app.statusColor} text-xs font-bold rounded-full border border-${app.statusColor}/20`}>*/}
-            {/*          {app.status}*/}
-            {/*        </span>*/}
-            {/*                    </td>*/}
-            {/*                </tr>*/}
-            {/*            ))}*/}
-            {/*            </tbody>*/}
-            {/*        </table>*/}
-            {/*    </div>*/}
-            {/*</section>*/}
         </div>
         </Layout>
     );

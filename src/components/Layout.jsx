@@ -14,8 +14,11 @@ import {
 } from './icons';
 import { Building2, Users, X } from "lucide-react";
 import { motion } from 'motion/react';
+import { getAccountDetail } from '../lib/cfctApi';
 
 const ROLE_STORAGE_KEY = 'userRole';
+const DISPLAY_NAME_STORAGE_KEY = 'loginDisplayName';
+const ACCOUNT_SEQNO_STORAGE_KEY = 'loginAccountSeqNo';
 
 const NAV_ITEMS = {
   employee: [
@@ -31,6 +34,8 @@ const NAV_ITEMS = {
   hr: [
     { to: '/managerDashboard', label: '首頁', icon: LayoutDashboard },
     { to: '/approvals', label: '審核詳情', icon: User },
+    // { to: '/accountManagement', label: '帳號管理', icon: Users },
+    // { to: '/lineUserManagement', label: 'LINE 使用者', icon: Building2 },
     { to: '/departmentManagement', label: '部門管理', icon: Building2 },
     { to: '/employeeList', label: '員工管理', icon: Users },
   ],
@@ -40,9 +45,40 @@ export default function Layout({ children, title = "", showBack = false }) {
   const navigate = useNavigate();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [role, setRole] = useState('employee');
+  const [displayName, setDisplayName] = useState('未登入');
 
   useEffect(() => {
-    setRole(localStorage.getItem(ROLE_STORAGE_KEY) || 'employee');
+    setRole(localStorage.getItem(ROLE_STORAGE_KEY) || sessionStorage.getItem(ROLE_STORAGE_KEY) || 'employee');
+
+    const storedSeqNo =
+      localStorage.getItem(ACCOUNT_SEQNO_STORAGE_KEY)
+      || sessionStorage.getItem(ACCOUNT_SEQNO_STORAGE_KEY);
+
+    if (!storedSeqNo) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const response = await getAccountDetail(storedSeqNo);
+        if (!response.success || !response.data) {
+          return;
+        }
+
+        const latestDisplayName = response.data.displayName || '未登入';
+        setDisplayName(latestDisplayName);
+
+        if (localStorage.getItem(ACCOUNT_SEQNO_STORAGE_KEY) === storedSeqNo) {
+          localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, latestDisplayName);
+        }
+
+        if (sessionStorage.getItem(ACCOUNT_SEQNO_STORAGE_KEY) === storedSeqNo) {
+          sessionStorage.setItem(DISPLAY_NAME_STORAGE_KEY, latestDisplayName);
+        }
+      } catch {
+        setDisplayName('未登入');
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -155,7 +191,7 @@ export default function Layout({ children, title = "", showBack = false }) {
             {/*  <Bell size={20} />*/}
             {/*  <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>*/}
             {/*</button>*/}
-            <p className="text-m">張小名</p>
+            <p className="text-m">{displayName}</p>
 
           </div>
         </header>

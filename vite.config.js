@@ -34,6 +34,12 @@ export default defineConfig(({mode}) => {
       port: devPort,
       allowedHosts: [appHost],
       origin: appUrl,
+      proxy: {
+        '/app-api': {
+          target: env.BFF_URL || 'http://127.0.0.1:8787',
+          changeOrigin: true,
+        },
+      },
       hmr: isHmrDisabled
         ? false
         : {

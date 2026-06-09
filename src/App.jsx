@@ -11,6 +11,8 @@ import ManagerDashboard from './pages/ManagerDashboard';
 import DepartmentManagement from './pages/DepartmentManagement';
 import EmployeeForm from './pages/EmployeeForm';
 import EmployeeList from './pages/EmployeeList';
+import AccountManagement from './pages/AccountManagement';
+import LineUserManagement from './pages/LineUserManagement';
 
 export default function App() {
   return (
@@ -27,6 +29,8 @@ export default function App() {
         <Route path="/departmentManagement" element={<DepartmentManagement/>} />
         <Route path="/employeeList" element={<EmployeeList/>} />
         <Route path="/employeeForm" element={<EmployeeForm />} />
+        <Route path="/accountManagement" element={<AccountManagement />} />
+        <Route path="/lineUserManagement" element={<LineUserManagement />} />
         <Route path="/approvals/detail" element={<ApprovalDetail />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
