@@ -218,6 +218,14 @@ export default function OvertimeApplication() {
       return;
     }
 
+    if (!reason.trim()) {
+      void Swal.fire({
+        icon: 'warning',
+        title: '請填寫加班事由',
+      });
+      return;
+    }
+
     const startAt = new Date(toDateTimeString(startDate, startTime));
     const endAt = new Date(toDateTimeString(startDate, endTime));
 
@@ -357,11 +365,14 @@ export default function OvertimeApplication() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">加班日期</label>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                    加班日期 <span className="text-error">*</span>
+                  </label>
                   <input
                     type="date"
                     value={startDate}
                     onChange={(event) => setStartDate(event.target.value)}
+                    required
                     disabled={saving}
                     className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                   />
@@ -370,22 +381,28 @@ export default function OvertimeApplication() {
                 <div className="md:col-span-2">
                   <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div className="space-y-2">
-                      <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">開始時間</label>
+                      <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                        開始時間 <span className="text-error">*</span>
+                      </label>
                       <input
                         type="time"
                         value={startTime}
                         onChange={(event) => setStartTime(event.target.value)}
+                        required
                         disabled={saving}
                         className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">結束時間</label>
+                      <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                        結束時間 <span className="text-error">*</span>
+                      </label>
                       <input
                         type="time"
                         value={endTime}
                         onChange={(event) => setEndTime(event.target.value)}
+                        required
                         disabled={saving}
                         className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
@@ -394,11 +411,14 @@ export default function OvertimeApplication() {
                 </div>
 
                 <div className="md:col-span-2 space-y-2">
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">加班事由</label>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                    加班事由 <span className="text-error">*</span>
+                  </label>
                   <textarea
                     value={reason}
                     onChange={(event) => setReason(event.target.value)}
                     rows={4}
+                    required
                     disabled={saving}
                     placeholder="請輸入加班事由"
                     className="w-full border border-outline rounded-lg bg-white text-on-surface px-4 py-3 text-sm focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none disabled:bg-surface-container-low"
