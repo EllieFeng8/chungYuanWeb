@@ -1,20 +1,56 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { FileText, Lock, ChevronDown, Plus } from '../components/icons';
 import Layout from '../components/Layout';
 import {
   createApplication,
+  getAccountByLineUserId,
+  getEmployeeList,
   getLeaveTypeList,
   uploadAttachment,
 } from '../lib/cfctApi';
-import {
-  getCurrentEmployeeContext,
-  getStoredDisplayName,
-} from '../lib/applicationUtils';
+import { getStoredDisplayName } from '../lib/applicationUtils';
 
 const ACCENT_COLOR = '#dd771a';
+const ROLE_STORAGE_KEY = 'userRole';
+const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
+const DISPLAY_NAME_STORAGE_KEY = 'loginDisplayName';
+const ACCOUNT_SEQNO_STORAGE_KEY = 'loginAccountSeqNo';
+const LINE_USER_ID_STORAGE_KEY = 'loginLineUserId';
+
+function normalizeAppRole(apiRole) {
+  switch (apiRole) {
+    case 'admin':
+      return 'hr';
+    case 'manager':
+      return 'manager';
+    case 'member':
+      return 'employee';
+    default:
+      return '';
+  }
+}
+
+function persistLineLoginSession(account, lineUserId) {
+  const appRole = normalizeAppRole(account?.role);
+  if (!appRole) {
+    throw new Error(`不支援的角色：${account?.role || ''}`);
+  }
+
+  localStorage.setItem(LINE_USER_ID_STORAGE_KEY, lineUserId);
+  localStorage.setItem(ROLE_STORAGE_KEY, appRole);
+  localStorage.setItem(ACCOUNT_NAME_STORAGE_KEY, account.accountName || '');
+  localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, account.displayName || account.accountName || '');
+  localStorage.setItem(ACCOUNT_SEQNO_STORAGE_KEY, String(account.seqNo || ''));
+
+  sessionStorage.removeItem(LINE_USER_ID_STORAGE_KEY);
+  sessionStorage.removeItem(ROLE_STORAGE_KEY);
+  sessionStorage.removeItem(ACCOUNT_NAME_STORAGE_KEY);
+  sessionStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
+  sessionStorage.removeItem(ACCOUNT_SEQNO_STORAGE_KEY);
+}
 
 function getTypeCode(option) {
   return option?.typeCode ?? option?.TypeCode ?? '';
@@ -58,7 +94,7 @@ async function uploadApplicationAttachments(applicationData, files) {
     }
     formData.append('file', file, file.name);
 
-    console.log('[OvertimeApplication] POST /app-api/attachment', {
+    console.log('[OvertimeApplication_id] POST /app-api/attachment', {
       appSeqNo: String(appSeqNo),
       kind: 'proof',
       uploaderEmpNo,
@@ -66,18 +102,18 @@ async function uploadApplicationAttachments(applicationData, files) {
       fileSize: file.size,
     });
     const uploadResponse = await uploadAttachment(formData);
-    console.log('[OvertimeApplication] upload attachment response', uploadResponse);
+    console.log('[OvertimeApplication_id] upload attachment response', uploadResponse);
     if (!uploadResponse?.success) {
       throw new Error(uploadResponse?.error || `附件上傳失敗：${file.name}`);
     }
   }
 }
 
-export default function OvertimeApplication() {
+export default function OvertimeApplicationByLine() {
   const navigate = useNavigate();
+  const { lineUserId = '' } = useParams();
   const fileInputRef = useRef(null);
   const [overtimeTypes, setOvertimeTypes] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [currentEmployee, setCurrentEmployee] = useState(null);
   const [selectedOvertimeTypeCode, setSelectedOvertimeTypeCode] = useState('');
   const [startDate, setStartDate] = useState('');
@@ -89,6 +125,7 @@ export default function OvertimeApplication() {
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isSessionReady, setIsSessionReady] = useState(false);
 
   const selectedOvertimeType = useMemo(
     () => overtimeTypes.find((item) => getTypeCode(item) === selectedOvertimeTypeCode) ?? null,
@@ -117,29 +154,63 @@ export default function OvertimeApplication() {
 
     async function loadFormOptions() {
       setLoading(true);
+      setIsSessionReady(false);
       try {
-        console.log('[OvertimeApplication] GET /app-api/leave-types?category=overtime');
-        const [overtimeTypeResponse, employeeContext] = await Promise.all([
+        if (!lineUserId.trim()) {
+          throw new Error('缺少 lineUserId，無法載入加班申請資料。');
+        }
+
+        localStorage.setItem(LINE_USER_ID_STORAGE_KEY, lineUserId.trim());
+        sessionStorage.removeItem(LINE_USER_ID_STORAGE_KEY);
+
+        console.log('[OvertimeApplication_id] GET /app-api/leave-types?category=overtime');
+        const [overtimeTypeResponse, employeeResponse, accountResponse] = await Promise.all([
           getLeaveTypeList('overtime'),
-          getCurrentEmployeeContext(),
+          getEmployeeList(),
+          getAccountByLineUserId(lineUserId),
         ]);
-        console.log('[OvertimeApplication] overtime type response', overtimeTypeResponse);
-        console.log('[OvertimeApplication] employee context response', employeeContext);
+        console.log('[OvertimeApplication_id] overtime type response', overtimeTypeResponse);
+        console.log('[OvertimeApplication_id] employee list response', employeeResponse);
+        console.log('[OvertimeApplication_id] account by line response', accountResponse);
 
         if (!overtimeTypeResponse?.success) {
           throw new Error(overtimeTypeResponse?.error || '加班類型讀取失敗');
+        }
+        if (!employeeResponse?.success) {
+          throw new Error(employeeResponse?.error || '員工資料讀取失敗');
+        }
+        if (!accountResponse?.success || !accountResponse?.data) {
+          throw new Error(accountResponse?.error || 'LINE 綁定帳號讀取失敗');
         }
 
         if (!isMounted) {
           return;
         }
 
+        persistLineLoginSession(accountResponse.data, lineUserId.trim());
+
         const nextOvertimeTypes = Array.isArray(overtimeTypeResponse.data) ? overtimeTypeResponse.data : [];
+        const nextEmployees = Array.isArray(employeeResponse.data) ? employeeResponse.data : [];
+        const matchedEmployee = nextEmployees.find(
+          (employee) => String(employee.employeeNo || '').trim() === String(accountResponse.data.employeeNo || accountResponse.data.accountName || '').trim()
+        );
+        const matchedManager = nextEmployees.find(
+          (employee) => String(employee.employeeNo || '').trim() === String(matchedEmployee?.managerEmpNo || '').trim()
+        );
+        const nextCurrentEmployee = {
+          employeeNo: accountResponse.data.employeeNo || accountResponse.data.accountName || '',
+          employeeName: accountResponse.data.displayName || '',
+          departmentName: matchedEmployee?.departmentName || '',
+          managerEmpNo: matchedEmployee?.managerEmpNo || '',
+          managerEmpName: matchedEmployee?.managerEmpName || matchedManager?.employeeName || '',
+          lineUserId: lineUserId.trim(),
+        };
 
         setOvertimeTypes(nextOvertimeTypes);
-        setEmployees(employeeContext.employees);
-        setCurrentEmployee(employeeContext.currentEmployee);
+        setEmployees(nextEmployees);
+        setCurrentEmployee(nextCurrentEmployee);
         setSelectedOvertimeTypeCode(getTypeCode(nextOvertimeTypes[0]) || '');
+        setIsSessionReady(true);
       } catch (error) {
         if (!isMounted) {
           return;
@@ -162,7 +233,25 @@ export default function OvertimeApplication() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [lineUserId]);
+
+  if (!isSessionReady && loading) {
+    return (
+      <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-xl border border-[#dd771a]/20 bg-surface-container-lowest p-6 shadow-lg">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 border-[#dd771a]/30 border-t-[#dd771a] animate-spin" />
+            <div className="space-y-1">
+              <div className="text-base font-bold" style={{ color: ACCENT_COLOR }}>正在識別 LINE 登入者</div>
+              <p className="text-sm text-on-surface-variant">
+                正在根據 `lineUserId` 載入帳號資料並建立登入狀態。
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function handleOpenFilePicker() {
     fileInputRef.current?.click();
@@ -270,9 +359,9 @@ export default function OvertimeApplication() {
         remark: remark.trim() || null,
       };
 
-      console.log('[OvertimeApplication] POST /app-api/applications', { body: payload });
+      console.log('[OvertimeApplication_id] POST /app-api/applications', { body: payload });
       const response = await createApplication(payload);
-      console.log('[OvertimeApplication] create application response', response);
+      console.log('[OvertimeApplication_id] create application response', response);
       if (!response?.success) {
         throw new Error(response?.error || '加班申請送出失敗');
       }

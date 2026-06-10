@@ -34,11 +34,7 @@ export default function ManagerDashboard() {
                 const isAdmin = accountDetail?.role === 'admin';
                 setAccountRole(accountDetail?.role || '');
 
-                const requests = [
-                    getHrApplicationList({
-                        agentEmpNo: currentEmployee.employeeNo,
-                    }),
-                ];
+                const requests = [];
                 if (isAdmin) {
                     console.log('[ManagerDashboard] GET /app-api/hr/applications');
                     requests.push(getHrApplicationList());
@@ -62,25 +58,16 @@ export default function ManagerDashboard() {
                     return;
                 }
 
-                const agentAssignmentResponse = responses[0];
-                if (!agentAssignmentResponse?.success) {
-                    throw new Error(agentAssignmentResponse?.error || '代理知會資料讀取失敗');
-                }
-
-                const nextAgentAssignments = Array.isArray(agentAssignmentResponse.data)
-                    ? agentAssignmentResponse.data.filter(
-                        (item) => String(item?.agentEmpNo || '').trim() === currentEmployee.employeeNo
-                    )
-                    : [];
-                setAgentAssignments(nextAgentAssignments);
-
                 if (isAdmin) {
-                    const approvalResponse = responses[1];
+                    const approvalResponse = responses[0];
                     if (!approvalResponse?.success) {
                         throw new Error(approvalResponse?.error || '待審核資料讀取失敗');
                     }
 
                     const approvalItems = Array.isArray(approvalResponse.data) ? approvalResponse.data : [];
+                    setAgentAssignments(
+                        approvalItems.filter((item) => String(item?.agentEmpNo || '').trim() === currentEmployee.employeeNo)
+                    );
                     setCounts({
                         pendingApprovals: approvalItems.filter((item) => item?.status === 'pending').length,
                         overtimeApplications: approvalItems.filter((item) => isOvertimeApplication(item)).length,
@@ -91,7 +78,7 @@ export default function ManagerDashboard() {
                     return;
                 }
 
-                const [, approvalResponse, myApplicationsResponse] = responses;
+                const [approvalResponse, myApplicationsResponse] = responses;
                 if (!approvalResponse?.success) {
                     throw new Error(approvalResponse?.error || '待審核資料讀取失敗');
                 }
@@ -101,6 +88,9 @@ export default function ManagerDashboard() {
 
                 const approvalItems = Array.isArray(approvalResponse.data) ? approvalResponse.data : [];
                 const myApplications = Array.isArray(myApplicationsResponse.data) ? myApplicationsResponse.data : [];
+                setAgentAssignments(
+                    approvalItems.filter((item) => String(item?.agentEmpNo || '').trim() === currentEmployee.employeeNo)
+                );
 
                 setCounts({
                     pendingApprovals: approvalItems.filter((item) => item?.status === 'pending').length,

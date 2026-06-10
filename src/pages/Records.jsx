@@ -17,6 +17,7 @@ import {
   getMyApplications,
 } from '../lib/cfctApi';
 import {
+  formatDateTime,
   getCurrentEmployeeContext,
   getApplicationDotColor,
   getApplicationPeriod,
@@ -32,7 +33,7 @@ function mapApplicationRecord(item) {
     status: item.status || '',
     statusLabel: getApplicationStatusLabel(item.status),
     typeName: getApplicationTypeName(item),
-    submittedAt: item.createdAt || item.submittedAt || item.startTime || '',
+    submittedAt: formatDateTime(item.createdAt || item.submittedAt || item.startTime || ''),
     period,
     supplementRequired: item.status === 'need_supplement',
     dotColor: getApplicationDotColor(item.category),
@@ -285,8 +286,7 @@ export default function Records() {
                       onClick={() => void handleOpenRecord(record.id)}
                     >
                       <td className="px-6 py-5">
-                        <p className="text-sm font-bold text-on-surface">{record.submittedAt.split(' ')[0] || '-'}</p>
-                        <p className="text-[11px] text-secondary mt-0.5">{record.submittedAt.split(' ')[1] || '-'}</p>
+                        <p className="text-sm font-bold text-on-surface">{record.submittedAt || '-'}</p>
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2">

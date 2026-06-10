@@ -1,48 +1,78 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import { Clock, CalendarX, AlertCircle } from '../components/icons';
 import Layout from '../components/Layout';
 import { motion } from 'motion/react';
-import { getHrApplicationList } from '../lib/cfctApi';
-import {
-  getApplicationTypeName,
-  getCurrentEmployeeContext,
-} from '../lib/applicationUtils';
+import { acceptAgentRequest, getAgentRequestInbox, rejectAgentRequest } from '../lib/cfctApi';
+import { getApplicationTypeName, getCurrentEmployeeContext } from '../lib/applicationUtils';
 
 function mapAgentAssignment(item) {
   return {
-    seqNo: item?.seqNo || '',
-    applicantName: item?.applicantName || item?.applicantEmpNo || '-',
+    seqNo: item?.seqNo || item?.applicationSeqNo || item?.id || '',
+    applicantName: item?.applicantName || item?.applicantEmpName || item?.applicantEmpNo || '-',
+    applicantEmpNo: item?.applicantEmpNo || '',
     agentEmpNo: item?.agentEmpNo || '',
     typeName: getApplicationTypeName(item),
+    rowVer: item?.rowVer,
     raw: item,
   };
+}
+
+function normalizeEmployeeNo(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [agentAssignments, setAgentAssignments] = useState([]);
+  const [currentEmployee, setCurrentEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [submittingSeqNo, setSubmittingSeqNo] = useState('');
+  const promptedAssignmentKeyRef = useRef('');
+
+  async function fetchAgentInbox(employeeNo) {
+    const normalizedEmployeeNo = normalizeEmployeeNo(employeeNo);
+    const primaryResponse = await getAgentRequestInbox(employeeNo);
+
+    if (!primaryResponse?.success) {
+      throw new Error(primaryResponse?.error || '代理知會讀取失敗');
+    }
+
+    const primaryItems = Array.isArray(primaryResponse.data) ? primaryResponse.data : [];
+    if (primaryItems.length || !normalizedEmployeeNo || normalizedEmployeeNo === String(employeeNo || '').trim()) {
+      return primaryResponse;
+    }
+
+    const fallbackResponse = await getAgentRequestInbox(normalizedEmployeeNo);
+    if (!fallbackResponse?.success) {
+      throw new Error(fallbackResponse?.error || '代理知會讀取失敗');
+    }
+
+    return fallbackResponse;
+  }
 
   async function loadAgentAssignments() {
     setLoading(true);
     try {
-      const { currentEmployee } = await getCurrentEmployeeContext();
-      console.log('[Dashboard] GET /app-api/hr/applications', {
-        agentEmpNo: currentEmployee.employeeNo,
-      });
-      const requestResponse = await getHrApplicationList({
-        agentEmpNo: currentEmployee.employeeNo,
-      });
+      const employeeContext = await getCurrentEmployeeContext();
+      const employee = employeeContext.currentEmployee;
+      setCurrentEmployee(employee);
 
-      if (!requestResponse?.success) {
-        throw new Error(requestResponse?.error || '代理知會讀取失敗');
-      }
+      console.log('[Dashboard] GET /app-api/agent-request/inbox', {
+        employeeNo: employee.employeeNo,
+      });
+      const requestResponse = await fetchAgentInbox(employee.employeeNo);
 
       const assignments = Array.isArray(requestResponse.data)
         ? requestResponse.data
-          .filter((item) => String(item?.agentEmpNo || '').trim() === currentEmployee.employeeNo)
+          .filter((item) => {
+            const matchesCurrentEmployee = (
+              normalizeEmployeeNo(item?.agentEmpNo) === normalizeEmployeeNo(employee.employeeNo)
+            );
+            const confirmState = String(item?.agentConfirmState || 'pending').trim().toLowerCase();
+            return matchesCurrentEmployee && confirmState === 'pending';
+          })
           .map(mapAgentAssignment)
         : [];
 
@@ -70,11 +100,97 @@ export default function Dashboard() {
 
     const firstAssignment = agentAssignments[0];
     if (agentAssignments.length === 1) {
-      return `${firstAssignment.applicantName} 的 ${firstAssignment.typeName} 申請指定您為代理人，僅知會不需確認。`;
+      return `${firstAssignment.applicantName} 指定您代理 ${firstAssignment.typeName} 申請。`;
     }
 
-    return `${firstAssignment.applicantName} 等 ${agentAssignments.length} 筆申請指定您為代理人，僅知會不需確認。`;
+    return `${firstAssignment.applicantName} 等 ${agentAssignments.length} 筆申請指定您代理。`;
   }, [agentAssignments]);
+
+  async function handleAgentAction(items, action) {
+    const targetItems = Array.isArray(items) ? items.filter((item) => item?.seqNo) : [];
+
+    if (!currentEmployee?.employeeNo || !targetItems.length) {
+      return;
+    }
+
+    setSubmittingSeqNo(targetItems.map((item) => String(item.seqNo)).join(','));
+    try {
+      for (const item of targetItems) {
+        const payload = {
+          actorEmpNo: currentEmployee.employeeNo,
+          ...(typeof item?.rowVer === 'number' ? { rowVer: item.rowVer } : {}),
+        };
+
+        const response = action === 'accept'
+          ? await acceptAgentRequest(item.seqNo, payload)
+          : await rejectAgentRequest(item.seqNo, payload);
+
+        if (!response?.success) {
+          throw new Error(response?.error || (action === 'accept' ? '接受代理失敗' : '拒絕代理失敗'));
+        }
+      }
+
+      await loadAgentAssignments();
+      void Swal.fire({
+        icon: 'success',
+        title: action === 'accept' ? '已接受代理' : '已拒絕代理',
+        timer: 1200,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      void Swal.fire({
+        icon: 'error',
+        title: action === 'accept' ? '接受失敗' : '拒絕失敗',
+        text: error instanceof Error ? error.message : '操作失敗',
+      });
+    } finally {
+      setSubmittingSeqNo('');
+    }
+  }
+
+  async function handleOpenAgentDialog() {
+    if (!agentAssignments.length) {
+      return;
+    }
+
+    const firstAssignment = agentAssignments[0];
+    const result = await Swal.fire({
+      icon: 'question',
+      title: '代理確認',
+      html: `
+        <div style="text-align:left">
+          <div>申請人：${firstAssignment.applicantName}</div>
+          <div>類型：${firstAssignment.typeName}</div>
+          <div>待處理筆數：${agentAssignments.length}</div>
+        </div>
+      `,
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: '接受代理',
+      denyButtonText: '拒絕代理',
+      cancelButtonText: '取消',
+    });
+
+    if (result.isConfirmed) {
+      await handleAgentAction(agentAssignments, 'accept');
+    } else if (result.isDenied) {
+      await handleAgentAction(agentAssignments, 'reject');
+    }
+  }
+
+  useEffect(() => {
+    if (loading || submittingSeqNo || !agentAssignments.length) {
+      return;
+    }
+
+    const promptKey = agentAssignments.map((item) => String(item.seqNo)).join(',');
+    if (!promptKey || promptedAssignmentKeyRef.current === promptKey) {
+      return;
+    }
+
+    promptedAssignmentKeyRef.current = promptKey;
+    void handleOpenAgentDialog();
+  }, [agentAssignments, loading, submittingSeqNo]);
 
   return (
     <Layout title="">
@@ -84,14 +200,19 @@ export default function Dashboard() {
       </div>
 
       {!loading && agentAssignments.length ? (
-        <div className="mb-10 sm:mb-12 w-full p-4 bg-tertiary-fixed border border-tertiary-container/30 rounded-xl flex items-start sm:items-center gap-4 text-left">
+        <button
+          type="button"
+          onClick={() => void handleOpenAgentDialog()}
+          disabled={Boolean(submittingSeqNo)}
+          className="mb-10 sm:mb-12 w-full p-4 bg-tertiary-fixed border border-tertiary-container/30 rounded-xl flex items-start sm:items-center gap-4 text-left transition-colors hover:bg-tertiary-fixed/80 disabled:opacity-60"
+        >
           <div className="w-10 h-10 bg-tertiary/10 rounded-full flex items-center justify-center text-tertiary shrink-0">
             <AlertCircle size={24} />
           </div>
           <span className="text-on-tertiary-container font-medium text-[24px]">
             {alertText}
           </span>
-        </div>
+        </button>
       ) : null}
 
       <div className="flex flex-col items-center justify-center space-y-6 sm:space-y-10 py-4 max-w-2xl mx-auto">

@@ -101,6 +101,23 @@ export default function LeaveApplication() {
     return employees.filter((employee) => employee.employeeNo && employee.employeeNo !== currentEmployee?.employeeNo);
   }, [currentEmployee?.employeeNo, employees]);
 
+  const currentDepartmentName = useMemo(
+    () => currentEmployee?.departmentName || '-',
+    [currentEmployee?.departmentName]
+  );
+
+  const currentManagerName = useMemo(() => {
+    if (currentEmployee?.managerEmpName) {
+      return currentEmployee.managerEmpName;
+    }
+
+    const matchedManager = employees.find(
+      (employee) => employee.employeeNo && employee.employeeNo === currentEmployee?.managerEmpNo
+    );
+
+    return matchedManager?.employeeName || currentEmployee?.managerEmpNo || '-';
+  }, [currentEmployee?.managerEmpName, currentEmployee?.managerEmpNo, employees]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -336,6 +353,30 @@ export default function LeaveApplication() {
                       className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
                       readOnly
                       value={currentEmployee?.employeeName || getStoredDisplayName() || (loading ? '載入中...' : '找不到員工資料')}
+                    />
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">部門</label>
+                  <div className="relative">
+                    <input
+                      className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
+                      readOnly
+                      value={currentDepartmentName}
+                    />
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">部門主管</label>
+                  <div className="relative">
+                    <input
+                      className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
+                      readOnly
+                      value={currentManagerName}
                     />
                     <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
                   </div>

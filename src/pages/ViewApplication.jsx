@@ -164,6 +164,41 @@ export default function ViewApplication() {
     return matchedEmployee?.employeeName || getStoredDisplayName() || application.applicantEmpNo;
   }, [application?.applicantEmpNo, employees]);
 
+  const applicantDepartmentName = useMemo(() => {
+    if (!application?.applicantEmpNo) {
+      return '-';
+    }
+
+    const matchedEmployee = employees.find(
+      (employee) => employee.employeeNo === application.applicantEmpNo
+    );
+
+    return matchedEmployee?.departmentName || '-';
+  }, [application?.applicantEmpNo, employees]);
+
+  const applicantManagerName = useMemo(() => {
+    if (!application?.applicantEmpNo) {
+      return '-';
+    }
+
+    const matchedEmployee = employees.find(
+      (employee) => employee.employeeNo === application.applicantEmpNo
+    );
+
+    if (!matchedEmployee?.managerEmpNo) {
+      return matchedEmployee?.managerEmpName || '-';
+    }
+
+    const matchedManager = employees.find(
+      (employee) => employee.employeeNo === matchedEmployee.managerEmpNo
+    );
+
+    return matchedManager?.employeeName
+      || matchedEmployee.managerEmpName
+      || matchedEmployee.managerEmpNo
+      || '-';
+  }, [application?.applicantEmpNo, employees]);
+
   if (loading) {
     return (
       <Layout title="查看申請" showBack>
@@ -205,7 +240,7 @@ export default function ViewApplication() {
     || application.agentEmpNo
     || '未指定';
   const applicantEmpNo = application.applicantEmpNo || location.state?.employeeNo || '';
-  const canCancel = application.status === 'pending' || application.status === 'agent_pending';
+  const canCancel = application.status === 'pending';
   const canSupplement = application.status === 'need_supplement';
 
   function handleOpenFilePicker() {
@@ -370,7 +405,7 @@ export default function ViewApplication() {
                         className="inline-flex items-center gap-1 rounded-lg border border-tertiary px-4 py-2 text-sm font-bold text-tertiary transition-colors hover:bg-tertiary/10 disabled:opacity-50"
                       >
                         <Plus size={16} />
-                        新增補件附件
+                        新增附件
                       </button>
                       <button
                         type="button"
@@ -378,7 +413,7 @@ export default function ViewApplication() {
                         disabled={submitting}
                         className="rounded-lg bg-tertiary px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                       >
-                        補件
+                        上傳附件
                       </button>
                     </>
                   ) : null}
@@ -394,9 +429,9 @@ export default function ViewApplication() {
                   onChange={handleFileChange}
                   className="hidden"
                 />
-                <div className="text-sm font-semibold text-on-surface">補件附件</div>
+                <div className="text-sm font-semibold text-on-surface">缺少附件</div>
                 <p className="text-xs text-on-surface-variant">
-                  先上傳附件，送出補件後會以 `kind=supplement` 關聯到此申請。
+                  請上傳附件
                 </p>
                 {attachments.length ? (
                   <div className="space-y-2">
@@ -444,6 +479,20 @@ export default function ViewApplication() {
                 <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">類型</label>
                 <div className="h-11 border-b border-outline-variant flex items-center px-1">
                   <span className="text-sm font-semibold">{getApplicationTypeName(application)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">部門</label>
+                <div className="h-11 border-b border-outline-variant flex items-center px-1">
+                  <span className="text-sm font-semibold">{applicantDepartmentName}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">部門主管</label>
+                <div className="h-11 border-b border-outline-variant flex items-center px-1">
+                  <span className="text-sm font-semibold">{applicantManagerName}</span>
                 </div>
               </div>
 

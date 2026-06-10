@@ -269,6 +269,18 @@ app.get('/app-api/hr/applications', (req, res) => {
   return forwardJson(res, `/api/hr/application/all${query ? `?${query}` : ''}`);
 });
 
+app.get('/app-api/agent-request/inbox', (req, res) => {
+  const employeeNo = String(req.query.employeeNo || '').trim();
+  const searchParams = new URLSearchParams();
+
+  if (employeeNo) {
+    searchParams.set('employeeNo', employeeNo);
+  }
+
+  const query = searchParams.toString();
+  return forwardJson(res, `/api/agent-request/inbox${query ? `?${query}` : ''}`);
+});
+
 app.post('/app-api/agent-request/:seqNo/accept', (req, res) => {
   return forwardJson(res, `/api/agent-request/${req.params.seqNo}/accept`, {
     method: 'POST',
@@ -286,6 +298,10 @@ app.post('/app-api/agent-request/:seqNo/reject', (req, res) => {
 app.get('/app-api/accounts', (req, res) => {
   const includeAll = req.query.includeAll === 'true' ? '?IncludeAll=true' : '';
   return forwardJson(res, `/api/account/list${includeAll}`);
+});
+
+app.get('/app-api/accounts/by-line/:lineUserId', (req, res) => {
+  return forwardJson(res, `/api/account/by-line/${encodeURIComponent(req.params.lineUserId)}`);
 });
 
 app.get('/app-api/accounts/:seqNo', (req, res) => {

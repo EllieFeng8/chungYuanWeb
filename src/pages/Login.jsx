@@ -2,12 +2,39 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, User, Lock, ArrowRight, AlertCircle } from '../components/icons';
 import { motion } from 'motion/react';
-import { getAccounts, getHealth } from '../lib/cfctApi';
+import { getAccountByLineUserId, getAccounts, getHealth } from '../lib/cfctApi';
 
 const ROLE_STORAGE_KEY = 'userRole';
 const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
 const DISPLAY_NAME_STORAGE_KEY = 'loginDisplayName';
 const ACCOUNT_SEQNO_STORAGE_KEY = 'loginAccountSeqNo';
+const LINE_USER_ID_STORAGE_KEY = 'loginLineUserId';
+const LINE_AUTO_LOGIN_ENABLED_STORAGE_KEY = 'lineAutoLoginEnabled';
+
+function getStoredLineUserId() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return localStorage.getItem(LINE_USER_ID_STORAGE_KEY) || sessionStorage.getItem(LINE_USER_ID_STORAGE_KEY) || '';
+}
+
+function getQueryLineUserId() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return new URLSearchParams(window.location.search).get('lineUserId')?.trim() || '';
+}
+
+function isStoredAutoLoginEnabled() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const savedValue = localStorage.getItem(LINE_AUTO_LOGIN_ENABLED_STORAGE_KEY);
+  return savedValue === 'true';
+}
 
 function normalizeAppRole(apiRole) {
   switch (apiRole) {
@@ -22,6 +49,48 @@ function normalizeAppRole(apiRole) {
   }
 }
 
+function persistLoginSession(account, roleConfig, remember) {
+  const storage = remember ? localStorage : sessionStorage;
+  const fallbackStorage = remember ? sessionStorage : localStorage;
+
+  fallbackStorage.removeItem(ROLE_STORAGE_KEY);
+  fallbackStorage.removeItem(ACCOUNT_NAME_STORAGE_KEY);
+  fallbackStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
+  fallbackStorage.removeItem(ACCOUNT_SEQNO_STORAGE_KEY);
+
+  storage.setItem(ROLE_STORAGE_KEY, roleConfig.key);
+  storage.setItem(ACCOUNT_NAME_STORAGE_KEY, account.accountName);
+  storage.setItem(DISPLAY_NAME_STORAGE_KEY, account.displayName || account.accountName);
+  storage.setItem(ACCOUNT_SEQNO_STORAGE_KEY, String(account.seqNo));
+
+  const savedLineUserId = localStorage.getItem(LINE_USER_ID_STORAGE_KEY) || sessionStorage.getItem(LINE_USER_ID_STORAGE_KEY);
+  if (savedLineUserId) {
+    fallbackStorage.removeItem(LINE_USER_ID_STORAGE_KEY);
+    storage.setItem(LINE_USER_ID_STORAGE_KEY, savedLineUserId);
+  }
+}
+
+function validateLoginAccount(account) {
+  if (!account) {
+    throw new Error('找不到對應帳號。');
+  }
+
+  if (account.estate !== 'Active') {
+    throw new Error(`此帳號目前狀態為 ${account.estate}，不可登入。`);
+  }
+
+  if (account.role === 'block') {
+    throw new Error('此帳號已被封鎖。');
+  }
+
+  const roleConfig = normalizeAppRole(account.role);
+  if (!roleConfig) {
+    throw new Error(`不支援的角色：${account.role}`);
+  }
+
+  return roleConfig;
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
@@ -32,6 +101,9 @@ export default function Login() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [error, setError] = useState('');
   const [apiStatus, setApiStatus] = useState({ configured: false, reachable: false });
+  const [isAutoLogin, setIsAutoLogin] = useState(false);
+  const [autoLoginEnabled, setAutoLoginEnabled] = useState(() => isStoredAutoLoginEnabled());
+  const [savedLineUserId, setSavedLineUserId] = useState(() => getStoredLineUserId());
 
   const accountLookup = useMemo(() => {
     return new Map(accounts.map((account) => [account.accountName.toLowerCase(), account]));
@@ -43,11 +115,13 @@ export default function Login() {
     async function bootstrap() {
       setIsBootstrapping(true);
       setError('');
+      const queryLineUserId = getQueryLineUserId();
+      const persistedLineUserId = getStoredLineUserId();
+      const lineUserId = queryLineUserId || (autoLoginEnabled ? persistedLineUserId : '');
+      setSavedLineUserId(persistedLineUserId);
+      setIsAutoLogin(Boolean(lineUserId));
       try {
-        const [healthResponse, accountsResponse] = await Promise.all([
-          getHealth(),
-          getAccounts(true),
-        ]);
+        const healthResponse = await getHealth();
 
         if (!active) {
           return;
@@ -58,6 +132,27 @@ export default function Login() {
           reachable: true,
         });
 
+        if (lineUserId) {
+          localStorage.setItem(LINE_USER_ID_STORAGE_KEY, lineUserId);
+          sessionStorage.removeItem(LINE_USER_ID_STORAGE_KEY);
+          const accountResponse = await getAccountByLineUserId(lineUserId);
+          if (!accountResponse?.success || !accountResponse?.data) {
+            throw new Error(accountResponse?.error || 'LINE 綁定帳號讀取失敗');
+          }
+
+          if (!active) {
+            return;
+          }
+
+          const matchedAccount = accountResponse.data;
+          const roleConfig = validateLoginAccount(matchedAccount);
+          setUsername(matchedAccount.accountName || '');
+          persistLoginSession(matchedAccount, roleConfig, true);
+          navigate(roleConfig.path);
+          return;
+        }
+
+        const accountsResponse = await getAccounts(true);
         if (!accountsResponse.success) {
           throw new Error(accountsResponse.error || '無法讀取帳號清單');
         }
@@ -71,6 +166,7 @@ export default function Login() {
         setError(bootstrapError instanceof Error ? bootstrapError.message : '無法連接 API');
       } finally {
         if (active) {
+          setIsAutoLogin(false);
           setIsBootstrapping(false);
         }
       }
@@ -81,7 +177,13 @@ export default function Login() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [autoLoginEnabled]);
+
+  const handleToggleAutoLogin = () => {
+    const nextValue = !autoLoginEnabled;
+    setAutoLoginEnabled(nextValue);
+    localStorage.setItem(LINE_AUTO_LOGIN_ENABLED_STORAGE_KEY, String(nextValue));
+  };
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -99,48 +201,17 @@ export default function Login() {
     }
 
     const matchedAccount = accountLookup.get(accountName);
-    if (!matchedAccount) {
-      setError('找不到對應帳號。');
-      return;
-    }
-
-    if (matchedAccount.estate !== 'Active') {
-      setError(`此帳號目前狀態為 ${matchedAccount.estate}，不可登入。`);
-      return;
-    }
-
-    if (matchedAccount.role === 'block') {
-      setError('此帳號已被封鎖。');
-      return;
-    }
-
-    const roleConfig = normalizeAppRole(matchedAccount.role);
-    if (!roleConfig) {
-      setError(`不支援的角色：${matchedAccount.role}`);
+    let roleConfig = null;
+    try {
+      roleConfig = validateLoginAccount(matchedAccount);
+    } catch (validationError) {
+      setError(validationError instanceof Error ? validationError.message : '登入驗證失敗');
       return;
     }
 
     setIsLoading(true);
     try {
-      if (remember) {
-        localStorage.setItem(ROLE_STORAGE_KEY, roleConfig.key);
-        localStorage.setItem(ACCOUNT_NAME_STORAGE_KEY, matchedAccount.accountName);
-        localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, matchedAccount.displayName || matchedAccount.accountName);
-        localStorage.setItem(ACCOUNT_SEQNO_STORAGE_KEY, String(matchedAccount.seqNo));
-        sessionStorage.removeItem(ROLE_STORAGE_KEY);
-        sessionStorage.removeItem(ACCOUNT_NAME_STORAGE_KEY);
-        sessionStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
-        sessionStorage.removeItem(ACCOUNT_SEQNO_STORAGE_KEY);
-      } else {
-        localStorage.removeItem(ROLE_STORAGE_KEY);
-        localStorage.removeItem(ACCOUNT_NAME_STORAGE_KEY);
-        localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
-        localStorage.removeItem(ACCOUNT_SEQNO_STORAGE_KEY);
-        sessionStorage.setItem(ROLE_STORAGE_KEY, roleConfig.key);
-        sessionStorage.setItem(ACCOUNT_NAME_STORAGE_KEY, matchedAccount.accountName);
-        sessionStorage.setItem(DISPLAY_NAME_STORAGE_KEY, matchedAccount.displayName || matchedAccount.accountName);
-        sessionStorage.setItem(ACCOUNT_SEQNO_STORAGE_KEY, String(matchedAccount.seqNo));
-      }
+      persistLoginSession(matchedAccount, roleConfig, remember);
       navigate(roleConfig.path);
     } finally {
       setIsLoading(false);
@@ -199,6 +270,38 @@ export default function Login() {
                 <span className="text-sm font-bold text-error">登入失敗</span>
                 <p className="text-xs text-on-error-container">{error}</p>
               </div>
+            </div>
+          ) : null}
+
+          {isAutoLogin ? (
+            <div className="mb-8 rounded-lg border border-primary/20 bg-primary/5 p-4 flex gap-3">
+              <div className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-primary">自動登入中</span>
+                <p className="text-xs text-on-surface-variant">正在根據 LINE 綁定帳號識別登入者並導向對應頁面。</p>
+              </div>
+            </div>
+          ) : null}
+
+          {savedLineUserId ? (
+            <div className="mb-8 rounded-lg border border-outline-variant bg-surface-container-low p-4 flex items-center justify-between gap-4">
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-on-surface">LINE 自動登入</span>
+                <p className="text-xs text-on-surface-variant">
+                  {autoLoginEnabled ? '已啟用，返回登入頁時會優先使用已保存的 LINE 身分。' : '已停用，登入頁將改用手動登入。'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleAutoLogin}
+                className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold transition-colors ${
+                  autoLoginEnabled
+                    ? 'bg-primary text-white hover:bg-primary-container'
+                    : 'border border-outline bg-white text-secondary hover:bg-surface-container-high'
+                }`}
+              >
+                {autoLoginEnabled ? '停用自動登入' : '啟用自動登入'}
+              </button>
             </div>
           ) : null}
 

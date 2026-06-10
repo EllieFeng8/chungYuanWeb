@@ -35,22 +35,27 @@ import {
     getStoredDisplayName,
 } from '../lib/applicationUtils';
 
-function getAgentStatusLabel(status) {
+function getAgentStatusLabel(status, hasAgent) {
     switch (status) {
         case 'confirmed':
         case 'approved':
         case '已確認':
             return '已確認';
         case 'pending':
-        case 'agent_pending':
         case '待確認':
             return '待確認';
+        case 'rejected':
+        case '已拒絕':
+            return '已拒絕';
         case 'unassigned':
         case 'none':
+            return hasAgent ? '未回覆' : '未指派';
         case '未指派':
             return '未指派';
+        case '未回覆':
+            return '未回覆';
         default:
-            return status || '-';
+            return status || (hasAgent ? '-' : '未指派');
     }
 }
 
@@ -91,7 +96,6 @@ export default function ApprovalDetail() {
     const hasBeenReviewed = (status) => Boolean(
         status
         && status !== 'pending'
-        && status !== 'agent_pending'
     );
 
     useEffect(() => {
@@ -210,6 +214,41 @@ export default function ApprovalDetail() {
         return matchedEmployee?.employeeName || application.applicantEmpNo;
     }, [application?.applicantEmpNo, employees]);
 
+    const applicantDepartmentName = useMemo(() => {
+        if (!application?.applicantEmpNo) {
+            return '-';
+        }
+
+        const matchedEmployee = employees.find(
+            (employee) => employee.employeeNo === application.applicantEmpNo
+        );
+
+        return matchedEmployee?.departmentName || '-';
+    }, [application?.applicantEmpNo, employees]);
+
+    const applicantManagerName = useMemo(() => {
+        if (!application?.applicantEmpNo) {
+            return '-';
+        }
+
+        const matchedEmployee = employees.find(
+            (employee) => employee.employeeNo === application.applicantEmpNo
+        );
+
+        if (!matchedEmployee?.managerEmpNo) {
+            return matchedEmployee?.managerEmpName || '-';
+        }
+
+        const matchedManager = employees.find(
+            (employee) => employee.employeeNo === matchedEmployee.managerEmpNo
+        );
+
+        return matchedManager?.employeeName
+            || matchedEmployee.managerEmpName
+            || matchedEmployee.managerEmpNo
+            || '-';
+    }, [application?.applicantEmpNo, employees]);
+
     const canReview = Boolean(
         applicationSeqNo
         && application
@@ -230,9 +269,10 @@ export default function ApprovalDetail() {
         () => application?.agentName || application?.agentEmpName || application?.agentEmpNo || application?.proxyName || '-',
         [application]
     );
+    const hasAgent = agentName !== '-';
     const agentStatusLabel = useMemo(
-        () => getAgentStatusLabel(application?.agentConfirmState || application?.agentStatus),
-        [application?.agentConfirmState, application?.agentStatus]
+        () => getAgentStatusLabel(application?.agentConfirmState || application?.agentStatus, hasAgent),
+        [application?.agentConfirmState, application?.agentStatus, hasAgent]
     );
 
     function showSelfApprovalAlert() {
@@ -275,12 +315,17 @@ export default function ApprovalDetail() {
                 ...(typeof payload.rowVer === 'number' ? { rowVer: payload.rowVer } : {}),
             };
 
+            let response = null;
             if (action === 'approve') {
-                await approveApplication(applicationSeqNo, body);
+                response = await approveApplication(applicationSeqNo, body);
             } else if (action === 'reject') {
-                await rejectApplication(applicationSeqNo, body);
+                response = await rejectApplication(applicationSeqNo, body);
             } else {
-                await returnApplication(applicationSeqNo, body);
+                response = await returnApplication(applicationSeqNo, body);
+            }
+
+            if (!response?.success) {
+                throw new Error(response?.error || '簽核失敗');
             }
 
             await refreshApplicationDetail();
@@ -460,17 +505,32 @@ export default function ApprovalDetail() {
                 </div>
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                     <div className="space-y-2">
+                        <label className="text-xs font-medium text-on-surface-variant">員工姓名</label>
+                        <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg text-secondary">
+                            <Lock size={16} />
+                            <span className="text-sm">{applicantName}</span>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">假別類型</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
                             <CheckCircle2 size={16} className="text-primary fill-primary/10" />
                             <span className="text-sm">{getApplicationTypeName(application)}</span>
                         </div>
                     </div>
+
                     <div className="space-y-2">
-                        <label className="text-xs font-medium text-on-surface-variant">員工姓名</label>
-                        <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg text-secondary">
-                            <Lock size={16} />
-                            <span className="text-sm">{applicantName}</span>
+                        <label className="text-xs font-medium text-on-surface-variant">部門</label>
+                        <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
+                            <Lock size={16} className="text-outline-variant" />
+                            <span className="text-sm">{applicantDepartmentName}</span>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-xs font-medium text-on-surface-variant">部門主管</label>
+                        <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
+                            <Lock size={16} className="text-outline-variant" />
+                            <span className="text-sm">{applicantManagerName}</span>
                         </div>
                     </div>
                     <div className="space-y-2">

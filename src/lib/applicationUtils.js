@@ -167,8 +167,6 @@ export function getApplicationStatusLabel(status) {
       return '已駁回';
     case 'cancelled':
       return '已撤銷';
-    case 'agent_pending':
-      return '代理確認中';
     default:
       return status || '-';
   }
@@ -186,8 +184,6 @@ export function getApplicationStatusStyles(status) {
       return 'bg-error-container text-on-error-container border-error/10';
     case 'cancelled':
       return 'bg-surface-container text-secondary border-outline-variant';
-    case 'agent_pending':
-      return 'bg-amber-50 text-amber-700 border-amber-100';
     default:
       return 'bg-surface-container text-secondary border-outline-variant';
   }

@@ -10,10 +10,21 @@ async function request(path, init = {}) {
       ...init.headers,
     },
   });
-  const body = await response.json();
+  const rawBody = await response.text();
+  let body = null;
+
+  if (rawBody) {
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      body = rawBody;
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(body?.error || '請求失敗');
+    throw new Error(
+      (body && typeof body === 'object' && body.error) || rawBody || '請求失敗',
+    );
   }
 
   return body;
@@ -82,6 +93,10 @@ export function supplementApplication(seqNo, payload) {
   });
 }
 
+export function getAgentRequestInbox(employeeNo) {
+  return request(`/app-api/agent-request/inbox?employeeNo=${encodeURIComponent(employeeNo)}`);
+}
+
 export function acceptAgentRequest(seqNo, payload) {
   return request(`/app-api/agent-request/${seqNo}/accept`, {
     method: 'POST',
@@ -140,6 +155,10 @@ export function getAccounts(includeAll = true) {
 
 export function getAccountDetail(seqNo) {
   return request(`/app-api/accounts/${seqNo}`);
+}
+
+export function getAccountByLineUserId(lineUserId) {
+  return request(`/app-api/accounts/by-line/${encodeURIComponent(lineUserId)}`);
 }
 
 export function createAccount(payload) {

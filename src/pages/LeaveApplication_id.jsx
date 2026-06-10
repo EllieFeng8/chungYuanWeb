@@ -1,20 +1,56 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { FileText, Lock, ChevronDown, Plus } from '../components/icons';
 import Layout from '../components/Layout';
 import {
   createApplication,
+  getAccountByLineUserId,
+  getEmployeeList,
   getLeaveTypeList,
   uploadAttachment,
 } from '../lib/cfctApi';
-import {
-  getCurrentEmployeeContext,
-  getStoredDisplayName,
-} from '../lib/applicationUtils';
+import { getStoredDisplayName } from '../lib/applicationUtils';
 
-const ACCENT_COLOR = '#dd771a';
+const ACCENT_TEXT = 'text-primary';
+const ROLE_STORAGE_KEY = 'userRole';
+const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
+const DISPLAY_NAME_STORAGE_KEY = 'loginDisplayName';
+const ACCOUNT_SEQNO_STORAGE_KEY = 'loginAccountSeqNo';
+const LINE_USER_ID_STORAGE_KEY = 'loginLineUserId';
+
+function normalizeAppRole(apiRole) {
+  switch (apiRole) {
+    case 'admin':
+      return 'hr';
+    case 'manager':
+      return 'manager';
+    case 'member':
+      return 'employee';
+    default:
+      return '';
+  }
+}
+
+function persistLineLoginSession(account, lineUserId) {
+  const appRole = normalizeAppRole(account?.role);
+  if (!appRole) {
+    throw new Error(`不支援的角色：${account?.role || ''}`);
+  }
+
+  localStorage.setItem(LINE_USER_ID_STORAGE_KEY, lineUserId);
+  localStorage.setItem(ROLE_STORAGE_KEY, appRole);
+  localStorage.setItem(ACCOUNT_NAME_STORAGE_KEY, account.accountName || '');
+  localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, account.displayName || account.accountName || '');
+  localStorage.setItem(ACCOUNT_SEQNO_STORAGE_KEY, String(account.seqNo || ''));
+
+  sessionStorage.removeItem(LINE_USER_ID_STORAGE_KEY);
+  sessionStorage.removeItem(ROLE_STORAGE_KEY);
+  sessionStorage.removeItem(ACCOUNT_NAME_STORAGE_KEY);
+  sessionStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
+  sessionStorage.removeItem(ACCOUNT_SEQNO_STORAGE_KEY);
+}
 
 function getTypeCode(option) {
   return option?.typeCode ?? option?.TypeCode ?? '';
@@ -58,7 +94,7 @@ async function uploadApplicationAttachments(applicationData, files) {
     }
     formData.append('file', file, file.name);
 
-    console.log('[OvertimeApplication] POST /app-api/attachment', {
+    console.log('[LeaveApplication] POST /app-api/attachment', {
       appSeqNo: String(appSeqNo),
       kind: 'proof',
       uploaderEmpNo,
@@ -66,21 +102,24 @@ async function uploadApplicationAttachments(applicationData, files) {
       fileSize: file.size,
     });
     const uploadResponse = await uploadAttachment(formData);
-    console.log('[OvertimeApplication] upload attachment response', uploadResponse);
+    console.log('[LeaveApplication] upload attachment response', uploadResponse);
     if (!uploadResponse?.success) {
       throw new Error(uploadResponse?.error || `附件上傳失敗：${file.name}`);
     }
   }
 }
 
-export default function OvertimeApplication() {
+export default function LeaveApplication() {
   const navigate = useNavigate();
+  const { lineUserId = '' } = useParams();
   const fileInputRef = useRef(null);
-  const [overtimeTypes, setOvertimeTypes] = useState([]);
+  const [leaveTypes, setLeaveTypes] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [currentEmployee, setCurrentEmployee] = useState(null);
-  const [selectedOvertimeTypeCode, setSelectedOvertimeTypeCode] = useState('');
+  const [selectedLeaveTypeCode, setSelectedLeaveTypeCode] = useState('');
+  const [selectedAgentEmpNo, setSelectedAgentEmpNo] = useState('');
   const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [reason, setReason] = useState('');
@@ -89,11 +128,16 @@ export default function OvertimeApplication() {
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isSessionReady, setIsSessionReady] = useState(false);
 
-  const selectedOvertimeType = useMemo(
-    () => overtimeTypes.find((item) => getTypeCode(item) === selectedOvertimeTypeCode) ?? null,
-    [overtimeTypes, selectedOvertimeTypeCode]
+  const selectedLeaveType = useMemo(
+    () => leaveTypes.find((item) => getTypeCode(item) === selectedLeaveTypeCode) ?? null,
+    [leaveTypes, selectedLeaveTypeCode]
   );
+
+  const agentOptions = useMemo(() => {
+    return employees.filter((employee) => employee.employeeNo && employee.employeeNo !== currentEmployee?.employeeNo);
+  }, [currentEmployee?.employeeNo, employees]);
 
   const currentDepartmentName = useMemo(
     () => currentEmployee?.departmentName || '-',
@@ -117,29 +161,63 @@ export default function OvertimeApplication() {
 
     async function loadFormOptions() {
       setLoading(true);
+      setIsSessionReady(false);
       try {
-        console.log('[OvertimeApplication] GET /app-api/leave-types?category=overtime');
-        const [overtimeTypeResponse, employeeContext] = await Promise.all([
-          getLeaveTypeList('overtime'),
-          getCurrentEmployeeContext(),
-        ]);
-        console.log('[OvertimeApplication] overtime type response', overtimeTypeResponse);
-        console.log('[OvertimeApplication] employee context response', employeeContext);
+        if (!lineUserId.trim()) {
+          throw new Error('缺少 lineUserId，無法載入請假申請資料。');
+        }
 
-        if (!overtimeTypeResponse?.success) {
-          throw new Error(overtimeTypeResponse?.error || '加班類型讀取失敗');
+        localStorage.setItem(LINE_USER_ID_STORAGE_KEY, lineUserId.trim());
+        sessionStorage.removeItem(LINE_USER_ID_STORAGE_KEY);
+
+        console.log('[LeaveApplication_id] GET /app-api/leave-types?category=leave');
+        const [leaveTypeResponse, employeeResponse, accountResponse] = await Promise.all([
+          getLeaveTypeList('leave'),
+          getEmployeeList(),
+          getAccountByLineUserId(lineUserId),
+        ]);
+        console.log('[LeaveApplication_id] leave type response', leaveTypeResponse);
+        console.log('[LeaveApplication_id] employee list response', employeeResponse);
+        console.log('[LeaveApplication_id] account by line response', accountResponse);
+
+        if (!leaveTypeResponse?.success) {
+          throw new Error(leaveTypeResponse?.error || '請假類型讀取失敗');
+        }
+        if (!employeeResponse?.success) {
+          throw new Error(employeeResponse?.error || '員工資料讀取失敗');
+        }
+        if (!accountResponse?.success || !accountResponse?.data) {
+          throw new Error(accountResponse?.error || 'LINE 綁定帳號讀取失敗');
         }
 
         if (!isMounted) {
           return;
         }
 
-        const nextOvertimeTypes = Array.isArray(overtimeTypeResponse.data) ? overtimeTypeResponse.data : [];
+        persistLineLoginSession(accountResponse.data, lineUserId.trim());
 
-        setOvertimeTypes(nextOvertimeTypes);
-        setEmployees(employeeContext.employees);
-        setCurrentEmployee(employeeContext.currentEmployee);
-        setSelectedOvertimeTypeCode(getTypeCode(nextOvertimeTypes[0]) || '');
+        const nextLeaveTypes = Array.isArray(leaveTypeResponse.data) ? leaveTypeResponse.data : [];
+        const nextEmployees = Array.isArray(employeeResponse.data) ? employeeResponse.data : [];
+        const matchedEmployee = nextEmployees.find(
+          (employee) => String(employee.employeeNo || '').trim() === String(accountResponse.data.employeeNo || accountResponse.data.accountName || '').trim()
+        );
+        const matchedManager = nextEmployees.find(
+          (employee) => String(employee.employeeNo || '').trim() === String(matchedEmployee?.managerEmpNo || '').trim()
+        );
+        const nextCurrentEmployee = {
+          employeeNo: accountResponse.data.employeeNo || accountResponse.data.accountName || '',
+          employeeName: accountResponse.data.displayName || '',
+          departmentName: matchedEmployee?.departmentName || '',
+          managerEmpNo: matchedEmployee?.managerEmpNo || '',
+          managerEmpName: matchedEmployee?.managerEmpName || matchedManager?.employeeName || '',
+          lineUserId: lineUserId.trim(),
+        };
+
+        setLeaveTypes(nextLeaveTypes);
+        setEmployees(nextEmployees);
+        setCurrentEmployee(nextCurrentEmployee);
+        setSelectedLeaveTypeCode(getTypeCode(nextLeaveTypes[0]) || '');
+        setIsSessionReady(true);
       } catch (error) {
         if (!isMounted) {
           return;
@@ -162,7 +240,25 @@ export default function OvertimeApplication() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [lineUserId]);
+
+  if (!isSessionReady && loading) {
+    return (
+      <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-xl border border-primary/20 bg-surface-container-lowest p-6 shadow-lg">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
+            <div className="space-y-1">
+              <div className="text-base font-bold text-primary">正在識別 LINE 登入者</div>
+              <p className="text-sm text-on-surface-variant">
+                正在根據 `lineUserId` 載入帳號資料並建立登入狀態。
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   function handleOpenFilePicker() {
     fileInputRef.current?.click();
@@ -221,18 +317,18 @@ export default function OvertimeApplication() {
       return;
     }
 
-    if (!selectedOvertimeTypeCode) {
+    if (!selectedLeaveTypeCode) {
       void Swal.fire({
         icon: 'warning',
-        title: '請選擇加班類型',
+        title: '請選擇請假類型',
       });
       return;
     }
 
-    if (!startDate || !startTime || !endTime) {
+    if (!startDate || !endDate || !startTime || !endTime) {
       void Swal.fire({
         icon: 'warning',
-        title: '請完整填寫加班日期時間',
+        title: '請完整填寫起訖日期時間',
       });
       return;
     }
@@ -240,13 +336,13 @@ export default function OvertimeApplication() {
     if (!reason.trim()) {
       void Swal.fire({
         icon: 'warning',
-        title: '請填寫加班事由',
+        title: '請填寫請假原因',
       });
       return;
     }
 
     const startAt = new Date(toDateTimeString(startDate, startTime));
-    const endAt = new Date(toDateTimeString(startDate, endTime));
+    const endAt = new Date(toDateTimeString(endDate, endTime));
 
     if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
       void Swal.fire({
@@ -261,20 +357,21 @@ export default function OvertimeApplication() {
     try {
       const payload = {
         applicantEmpNo: currentEmployee.employeeNo,
-        category: 'overtime',
-        leaveTypeCode: selectedOvertimeTypeCode,
+        category: 'leave',
+        leaveTypeCode: selectedLeaveTypeCode,
         startTime: toDateTimeString(startDate, startTime),
-        endTime: toDateTimeString(startDate, endTime),
+        endTime: toDateTimeString(endDate, endTime),
         hours: calculateHours(startAt, endAt),
         reason: reason.trim() || null,
+        agentEmpNo: selectedAgentEmpNo || null,
         remark: remark.trim() || null,
       };
 
-      console.log('[OvertimeApplication] POST /app-api/applications', { body: payload });
+      console.log('[LeaveApplication] POST /app-api/applications', { body: payload });
       const response = await createApplication(payload);
-      console.log('[OvertimeApplication] create application response', response);
+      console.log('[LeaveApplication] create application response', response);
       if (!response?.success) {
-        throw new Error(response?.error || '加班申請送出失敗');
+        throw new Error(response?.error || '請假申請送出失敗');
       }
 
       await uploadApplicationAttachments(
@@ -301,7 +398,7 @@ export default function OvertimeApplication() {
       void Swal.fire({
         icon: 'error',
         title: '送出失敗',
-        text: error instanceof Error ? error.message : '無法送出加班申請',
+        text: error instanceof Error ? error.message : '無法送出請假申請',
       });
     } finally {
       setSaving(false);
@@ -309,23 +406,19 @@ export default function OvertimeApplication() {
   }
 
   return (
-    <Layout title="加班申請" showBack>
+    <Layout title="請假申請" showBack>
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-8">
           <h2 className="text-3xl font-bold text-on-surface">
-            <span>新增</span>
-            <span className="mx-2" style={{ color: ACCENT_COLOR }}>
-              加班
-            </span>
-            <span>申請</span>
+            <span>新增</span><span className="text-primary mx-2">請假</span><span>申請</span>
           </h2>
         </div>
 
         <section className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden mb-8">
-          <div className="h-1.5 w-full" style={{ backgroundColor: ACCENT_COLOR }}></div>
+          <div className="h-1.5 bg-primary w-full"></div>
           <div className="p-8">
             <div className="flex items-center gap-2 mb-8 border-b border-outline-variant pb-4">
-              <FileText size={20} style={{ color: ACCENT_COLOR }} />
+              <FileText className="text-primary" size={20} />
               <h3 className="text-lg font-semibold text-on-surface">申請詳情</h3>
             </div>
 
@@ -380,45 +473,85 @@ export default function OvertimeApplication() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">加班類型</label>
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">類型</label>
                   <div className="relative">
                     <select
-                      value={selectedOvertimeTypeCode}
-                      onChange={(event) => setSelectedOvertimeTypeCode(event.target.value)}
-                      disabled={loading || saving || !overtimeTypes.length}
-                      className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                      value={selectedLeaveTypeCode}
+                      onChange={(event) => setSelectedLeaveTypeCode(event.target.value)}
+                      disabled={loading || saving || !leaveTypes.length}
+                      className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                     >
-                      {overtimeTypes.length ? (
-                        overtimeTypes.map((option) => (
+                      {leaveTypes.length ? (
+                        leaveTypes.map((option) => (
                           <option key={getTypeCode(option)} value={getTypeCode(option)}>
                             {getTypeName(option)}
                           </option>
                         ))
                       ) : (
-                        <option value="">{loading ? '載入中...' : '無可用加班類型'}</option>
+                        <option value="">{loading ? '載入中...' : '無可用請假類型'}</option>
                       )}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" size={18} />
                   </div>
-                  {selectedOvertimeType ? (
-                    <p className="text-xs" style={{ color: ACCENT_COLOR }}>
-                      建議至少提前 {getAdvanceHours(selectedOvertimeType) ?? 0} 小時申請
+                  {selectedLeaveType ? (
+                    <p className={`text-xs ${ACCENT_TEXT}`}>
+                      建議至少提前 {getAdvanceHours(selectedLeaveType) ?? 0} 小時申請
                     </p>
                   ) : null}
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-                    加班日期 <span className="text-error">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(event) => setStartDate(event.target.value)}
-                    required
-                    disabled={saving}
-                    className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
-                  />
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">代理人姓名</label>
+                  <div className="relative">
+                    <select
+                      value={selectedAgentEmpNo}
+                      onChange={(event) => setSelectedAgentEmpNo(event.target.value)}
+                      disabled={loading || saving}
+                      className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                    >
+                      <option value="">不指定代理人</option>
+                      {agentOptions.map((employee) => (
+                        <option key={employee.employeeNo} value={employee.employeeNo}>
+                          {employee.employeeName}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" size={18} />
+                  </div>
+                </div>
+
+                <div className="hidden md:block"></div>
+
+                <div className="md:col-span-2">
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                        開始日期 <span className="text-error">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(event) => setStartDate(event.target.value)}
+                        required
+                        disabled={saving}
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                        結束日期 <span className="text-error">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(event) => setEndDate(event.target.value)}
+                        required
+                        disabled={saving}
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2">
@@ -433,7 +566,7 @@ export default function OvertimeApplication() {
                         onChange={(event) => setStartTime(event.target.value)}
                         required
                         disabled={saving}
-                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
                     </div>
 
@@ -447,7 +580,7 @@ export default function OvertimeApplication() {
                         onChange={(event) => setEndTime(event.target.value)}
                         required
                         disabled={saving}
-                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                       />
                     </div>
                   </div>
@@ -455,7 +588,7 @@ export default function OvertimeApplication() {
 
                 <div className="md:col-span-2 space-y-2">
                   <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
-                    加班事由 <span className="text-error">*</span>
+                    原因 <span className="text-error">*</span>
                   </label>
                   <textarea
                     value={reason}
@@ -463,8 +596,8 @@ export default function OvertimeApplication() {
                     rows={4}
                     required
                     disabled={saving}
-                    placeholder="請輸入加班事由"
-                    className="w-full border border-outline rounded-lg bg-white text-on-surface px-4 py-3 text-sm focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none disabled:bg-surface-container-low"
+                    placeholder="請輸入請假原因"
+                    className="w-full border border-outline rounded-lg bg-white text-on-surface px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none disabled:bg-surface-container-low"
                   />
                 </div>
 
@@ -476,7 +609,7 @@ export default function OvertimeApplication() {
                     rows={3}
                     disabled={saving}
                     placeholder="請輸入補充說明"
-                    className="w-full border border-outline rounded-lg bg-white text-on-surface px-4 py-3 text-sm focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none disabled:bg-surface-container-low"
+                    className="w-full border border-outline rounded-lg bg-white text-on-surface px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none disabled:bg-surface-container-low"
                   />
                 </div>
               </div>
@@ -485,8 +618,7 @@ export default function OvertimeApplication() {
                 <button
                   type="button"
                   onClick={handleOpenFilePicker}
-                  className="flex items-center gap-1.5 transition-colors font-semibold text-sm"
-                  style={{ color: ACCENT_COLOR }}
+                  className="flex items-center gap-1.5 text-primary hover:text-primary-container transition-colors font-semibold text-sm"
                 >
                   <Plus size={18} />
                   <span>新增附件</span>
@@ -535,8 +667,7 @@ export default function OvertimeApplication() {
                 <button
                   type="submit"
                   disabled={saving || loading}
-                  className="flex-1 px-4 py-2.5 text-center text-white rounded-lg shadow-md transition-all font-bold text-sm hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none sm:px-10"
-                  style={{ backgroundColor: ACCENT_COLOR }}
+                  className="flex-1 px-4 py-2.5 text-center bg-primary text-white rounded-lg hover:bg-primary-container shadow-md transition-all font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none sm:px-10"
                 >
                   {saving ? '提交中...' : '提交申請'}
                 </button>
@@ -552,18 +683,19 @@ export default function OvertimeApplication() {
           onClick={() => setIsReminderOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-xl bg-surface-container-lowest p-6 shadow-xl"
+            className="w-full max-w-lg rounded-xl bg-surface-container-lowest p-6 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <h3 className="mb-5 text-lg font-semibold text-on-surface">加班提醒</h3>
-            <p className="text-sm leading-7 text-on-surface">請依加班類型規定提早送出申請，系統會依類型提供建議提前申請時數。</p>
-            <p className="text-sm leading-7 text-error">※ 未依規定提出，可能導致申請失敗，請特別注意。</p>
+            <h3 className="mb-5 text-lg font-semibold text-on-surface">請假提醒</h3>
+            <div className="space-y-4 text-sm leading-7 text-on-surface">
+              <p>請依假別規定提早送出申請，系統會依選擇的假別帶出建議提前申請時數。</p>
+              <p className="text-sm leading-7 text-error">※ 未依規定提出，可能導致申請失敗，請特別注意。</p>
+            </div>
             <div className="mt-6 flex justify-end">
               <button
                 type="button"
                 onClick={() => setIsReminderOpen(false)}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
-                style={{ backgroundColor: ACCENT_COLOR }}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90"
               >
                 我知道了
               </button>

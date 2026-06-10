@@ -40,7 +40,6 @@ function getAgentStatusLabel(status, hasAgent) {
         case '已拒絕':
             return '已拒絕';
         case 'pending':
-        case 'agent_pending':
         case '待確認':
             return '待確認';
         case 'unassigned':
@@ -51,7 +50,7 @@ function getAgentStatusLabel(status, hasAgent) {
         case '未回覆':
             return '未回覆';
         default:
-            return status || '-';
+            return status || (hasAgent ? '-' : '未指派');
     }
 }
 
@@ -136,7 +135,7 @@ function normalizeApprovalItem(item) {
         typeColor: getTypeColor(item),
         duration: getDurationText(item),
         agentName,
-        agentStatus: getAgentStatusLabel(item?.agentConfirmState, hasAgent),
+        agentStatus: getAgentStatusLabel(item?.agentConfirmState || item?.agentStatus, hasAgent),
         status: statusLabel,
         detail: item?.reason || item?.remark || item?.comment || item?.description || '-',
         raw: item,
