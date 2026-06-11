@@ -1,13 +1,16 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import DashboardByLine from './pages/Dashboard_id';
 import LeaveApplication from './pages/LeaveApplication';
 import LeaveApplicationByLine from './pages/LeaveApplication_id';
 import OvertimeApplication from './pages/OvertimeApplication';
 import OvertimeApplicationByLine from './pages/OvertimeApplication_id';
 import Records from './pages/Records';
+import RecordsByLine from './pages/Records_id';
 import ViewApplication from './pages/ViewApplication';
 import ApprovalList from './pages/ApprovalList';
+import ApprovalListByLine from './pages/ApprovalList_id';
 import ApprovalDetail from './pages/ApprovalDetail';
 import ManagerDashboard from './pages/ManagerDashboard';
 import DepartmentManagement from './pages/DepartmentManagement';
@@ -42,13 +45,16 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard-id/:lineUserId" element={<DashboardByLine />} />
         <Route path="/apply-leave" element={<ProtectedRoute><LeaveApplication /></ProtectedRoute>} />
         <Route path="/apply-leave-id/:lineUserId" element={<LeaveApplicationByLine />} />
         <Route path="/apply-overtime" element={<ProtectedRoute><OvertimeApplication /></ProtectedRoute>} />
         <Route path="/apply-overtime-id/:lineUserId" element={<OvertimeApplicationByLine />} />
         <Route path="/records" element={<ProtectedRoute><Records /></ProtectedRoute>} />
+        <Route path="/records-id/:lineUserId" element={<RecordsByLine />} />
         <Route path="/view-application/:id" element={<ProtectedRoute><ViewApplication /></ProtectedRoute>} />
         <Route path="/approvals" element={<ProtectedRoute><ApprovalList /></ProtectedRoute>} />
+        <Route path="/approvals-id/:lineUserId" element={<ApprovalListByLine />} />
         <Route path="/managerDashboard" element={<ProtectedRoute><ManagerDashboard /></ProtectedRoute>} />
         <Route path="/departmentManagement" element={<ProtectedRoute><DepartmentManagement /></ProtectedRoute>} />
         <Route path="/employeeList" element={<ProtectedRoute><EmployeeList /></ProtectedRoute>} />

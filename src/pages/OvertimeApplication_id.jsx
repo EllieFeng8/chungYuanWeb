@@ -114,6 +114,7 @@ export default function OvertimeApplicationByLine() {
   const { lineUserId = '' } = useParams();
   const fileInputRef = useRef(null);
   const [overtimeTypes, setOvertimeTypes] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [currentEmployee, setCurrentEmployee] = useState(null);
   const [selectedOvertimeTypeCode, setSelectedOvertimeTypeCode] = useState('');
   const [startDate, setStartDate] = useState('');
