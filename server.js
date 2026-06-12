@@ -242,6 +242,13 @@ app.patch('/app-api/approval/:seqNo/return', (req, res) => {
   });
 });
 
+app.patch('/app-api/approval/:seqNo/admin-return', (req, res) => {
+  return forwardJson(res, `/api/approval/${req.params.seqNo}/admin-return`, {
+    method: 'PATCH',
+    body: JSON.stringify(req.body),
+  });
+});
+
 app.patch('/app-api/approval/:seqNo/reject', (req, res) => {
   return forwardJson(res, `/api/approval/${req.params.seqNo}/reject`, {
     method: 'PATCH',
@@ -249,8 +256,22 @@ app.patch('/app-api/approval/:seqNo/reject', (req, res) => {
   });
 });
 
+app.patch('/app-api/approval/:seqNo/admin-reject', (req, res) => {
+  return forwardJson(res, `/api/approval/${req.params.seqNo}/admin-reject`, {
+    method: 'PATCH',
+    body: JSON.stringify(req.body),
+  });
+});
+
 app.patch('/app-api/approval/:seqNo/approve', (req, res) => {
   return forwardJson(res, `/api/approval/${req.params.seqNo}/approve`, {
+    method: 'PATCH',
+    body: JSON.stringify(req.body),
+  });
+});
+
+app.patch('/app-api/approval/:seqNo/admin-approve', (req, res) => {
+  return forwardJson(res, `/api/approval/${req.params.seqNo}/admin-approve`, {
     method: 'PATCH',
     body: JSON.stringify(req.body),
   });

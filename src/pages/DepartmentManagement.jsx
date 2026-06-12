@@ -126,7 +126,7 @@ export default function DepartmentManagement() {
 
   const managerOptions = useMemo(() => {
     return employees
-      .filter((employee) => employee.role === 'manager' && employee.employeeNo && employee.employeeName)
+      .filter((employee) => ['manager', 'admin'].includes(employee.role) && employee.employeeNo && employee.employeeName)
       .map((employee) => ({
         value: employee.employeeNo,
         label: employee.employeeName,

@@ -166,12 +166,22 @@ export default function EmployeeForm({ mode = "add" }) {
 
     const managerOptions = useMemo(() => {
         return employeeDirectory
-            .filter((item) => item.role === 'manager' && item.employeeNo && item.employeeName)
+            .filter((item) => {
+                if (!['manager', 'admin'].includes(item.role) || !item.employeeNo || !item.employeeName) {
+                    return false;
+                }
+
+                if (!employeeForm.departmentNo) {
+                    return true;
+                }
+
+                return item.role === 'admin' || item.departmentNo === employeeForm.departmentNo;
+            })
             .map((item) => ({
                 value: item.employeeNo,
                 label: item.employeeName,
             }));
-    }, [employeeDirectory]);
+    }, [employeeDirectory, employeeForm.departmentNo]);
 
     const managerDisplayName = useMemo(() => {
         const matchedManager = employeeDirectory.find(
@@ -1044,7 +1054,28 @@ export default function EmployeeForm({ mode = "add" }) {
                                         </div>
                                     </div>
 
-                                    <ReadonlyField label="部門主管" value={managerDisplayName} />
+                                    <div className="space-y-2">
+                                        <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest" htmlFor="manager">
+                                            部門主管
+                                        </label>
+                                        <div className="relative">
+                                            <select
+                                                id="manager"
+                                                value={employeeForm.managerEmpNo}
+                                                onChange={(event) => handleEmployeeFormChange('managerEmpNo', event.target.value)}
+                                                className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm"
+                                            >
+                                                <option value="">請選擇部門主管</option>
+                                                {employeeForm.managerEmpNo && !managerOptions.some((option) => option.value === employeeForm.managerEmpNo) ? (
+                                                    <option value={employeeForm.managerEmpNo}>{managerDisplayName}</option>
+                                                ) : null}
+                                                {managerOptions.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" size={18} />
+                                        </div>
+                                    </div>
 
                                     <div className="space-y-2">
                                         <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest" htmlFor="role">

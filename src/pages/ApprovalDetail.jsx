@@ -18,6 +18,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import {
+    adminApproveApplication,
+    adminRejectApplication,
+    adminReturnApplication,
     approveApplication,
     getAttachmentDownloadUrl,
     getAttachmentList,
@@ -82,6 +85,7 @@ export default function ApprovalDetail() {
     const [attachmentError, setAttachmentError] = useState('');
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [accountRole, setAccountRole] = useState('');
     const navigate = useNavigate();
     const location = useLocation();
     const [searchParams] = useSearchParams();
@@ -166,6 +170,7 @@ export default function ApprovalDetail() {
                 setApplication(nextApplication);
                 setEmployees(employeeContext.employees);
                 setActorEmpNo(nextActorEmpNo);
+                setAccountRole(employeeContext.accountDetail?.role || '');
                 void loadAttachments(nextApplication?.seqNo || applicationSeqNo);
 
                 if (hasBeenReviewed(nextApplication?.status)) {
@@ -309,19 +314,40 @@ export default function ApprovalDetail() {
 
         setSubmitting(true);
         try {
+            const isAdmin = accountRole === 'admin';
             const body = {
                 actorEmpNo,
                 ...(payload.comment ? { comment: payload.comment } : {}),
                 ...(typeof payload.rowVer === 'number' ? { rowVer: payload.rowVer } : {}),
             };
+            const apiPath = action === 'approve'
+                ? `/app-api/approval/${applicationSeqNo}/${isAdmin ? 'admin-approve' : 'approve'}`
+                : action === 'reject'
+                    ? `/app-api/approval/${applicationSeqNo}/${isAdmin ? 'admin-reject' : 'reject'}`
+                    : `/app-api/approval/${applicationSeqNo}/${isAdmin ? 'admin-return' : 'return'}`;
+
+            console.log('[ApprovalDetail] PATCH approval action', {
+                action,
+                accountRole,
+                actorEmpNo,
+                seqNo: applicationSeqNo,
+                apiPath,
+                payload: body,
+            });
 
             let response = null;
             if (action === 'approve') {
-                response = await approveApplication(applicationSeqNo, body);
+                response = isAdmin
+                    ? await adminApproveApplication(applicationSeqNo, body)
+                    : await approveApplication(applicationSeqNo, body);
             } else if (action === 'reject') {
-                response = await rejectApplication(applicationSeqNo, body);
+                response = isAdmin
+                    ? await adminRejectApplication(applicationSeqNo, body)
+                    : await rejectApplication(applicationSeqNo, body);
             } else {
-                response = await returnApplication(applicationSeqNo, body);
+                response = isAdmin
+                    ? await adminReturnApplication(applicationSeqNo, body)
+                    : await returnApplication(applicationSeqNo, body);
             }
 
             if (!response?.success) {

@@ -135,6 +135,13 @@ export function approveApplication(seqNo, payload) {
   });
 }
 
+export function adminApproveApplication(seqNo, payload) {
+  return request(`/app-api/approval/${seqNo}/admin-approve`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function rejectApplication(seqNo, payload) {
   return request(`/app-api/approval/${seqNo}/reject`, {
     method: 'PATCH',
@@ -142,8 +149,22 @@ export function rejectApplication(seqNo, payload) {
   });
 }
 
+export function adminRejectApplication(seqNo, payload) {
+  return request(`/app-api/approval/${seqNo}/admin-reject`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function returnApplication(seqNo, payload) {
   return request(`/app-api/approval/${seqNo}/return`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function adminReturnApplication(seqNo, payload) {
+  return request(`/app-api/approval/${seqNo}/admin-return`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
