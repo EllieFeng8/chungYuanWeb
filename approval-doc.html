@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ç°½æ ¸ç³»çµ± Â· Chinafood API</title>
+<link rel="stylesheet" href="/docs/_layout.css">
+</head>
+<body data-doc-id="approval">
+
+<button class="toggle-sidebar" onclick="toggleSidebar()">â° ç®é</button>
+<aside class="sidebar" id="sidebar"></aside>
+
+<main>
+
+<div class="page-header">
+  <h1>ç°½æ ¸ç³»çµ± <span class="tag live">æ ¸å¿å·²å¯¦ä½</span></h1>
+  <div class="sub">è«å / å ç­ç³è«ãçµç¹æ¨¹å¤éç°½æ ¸ï¼ä¸»ç®¡å«å­é¨éï¼ãä»£çäººï¼ç´ç´éï¼ãéä»¶ãLINE éç¥ãHR å¨è¦½ Â· v1.16.0</div>
+</div>
+
+<section id="status">
+  <div class="callout info">
+    <strong>é²åº¦ï¼<span class="tag live">å¨é¨å·²å¯¦ä½</span></strong>
+    åå¥å­å¸ã<strong>ç³è«éåºï¼èªåå±éçµç¹æ¨¹ç°½æ ¸éï¼</strong>ãæçç³è« / å®ç­æéè»¸ã<strong>å¯©æ ¸åä½ï¼æ ¸å / é§å / éåè£ä»¶ï¼</strong>ãä»£çäººï¼ç´ç´éï¼ãæ¤é· / è£ä»¶ã<strong>éä»¶ä¸å³</strong>ã<strong>çæè®æ´ LINE éç¥</strong>ãHR å¨è¦½ / å¯åº ââ ä¸å¼µç³è«å¯å¾éåºèµ°å®æ´ç°½æ ¸æµç¨ã
+  </div>
+</section>
+
+<section id="chain-rule">
+  <h2>ç°½æ ¸éè¦åï¼éåºæèªåå±éï¼</h2>
+  <p>ç³è«éåºæï¼ç³»çµ±ä¾çµç¹æ¨¹å¾ç³è«äººæå±¬é¨é<strong>ä¸è·¯å¾ä¸</strong>ï¼ææ¯å±¤é¨éä¸»ç®¡çµæå¤éç°½æ ¸éï¼å¯«å¥ <code>ApprovalStep</code>ï¼ééæ¨é²ï¼ã</p>
+  <table>
+    <tr><th width="200">è¦å</th><th>èªªæ</th></tr>
+    <tr><td>å¤éã»ä¾çµç¹æ¨¹</td><td>æ²¿ <code>Department.ParentDeptNo</code> å¾ä¸ï¼æ¯å±¤ <code>ManagerEmpNo</code> åä¸éï¼ç´å±¬ä¸»ç®¡åç°½ï¼</td></tr>
+    <tr><td>è·³éèªå·±</td><td>ç³è«äººæ¬èº«æ¯æå±¤ä¸»ç®¡æï¼è©²éç¥éï¼ä¸»ç®¡ä¸ç°½èªå·±çå®ï¼</td></tr>
+    <tr><td>è·³éç©ºä¸»ç®¡</td><td>ä¸­éæå±¤æ²è¨­ä¸»ç®¡ï¼nullï¼â ç¥éè©²å±¤ï¼ç¹¼çºå¾ä¸</td></tr>
+    <tr><td>é£çºå»é</td><td>åä¸äººç®¡ç¸é°å©å±¤ â åªç°½ä¸æ¬¡ï¼æçé£çºç¸åç°½æ ¸äººï¼</td></tr>
+    <tr><td>ç©ºé fallback</td><td>æé«å±¤çäººç³è«ï¼å¾ä¸æä¸å°ä¸»ç®¡ï¼â æ¹é <code>Role='admin'</code> ç¶æå¾ä¸éï¼é£ admin é½æ²æ â èªåæ ¸å</td></tr>
+    <tr><td>ä»£çäººï¼ç´ç´é</td><td>ææå®ä»£çäºº â åªè¨å¨å®ä¸ï¼<code>agentEmpNo</code>ï¼ï¼<strong>ä¸å¡æ§</strong>ï¼ç§å¸¸é²ç¬¬ 1 éï¼2026-06-09 èµ·ï¼åç¢ºèªæ©å¶å·²ç§»é¤ï¼</td></tr>
+  </table>
+  <div class="callout info">
+    <strong>ä¾ï¼</strong>çµç¹æ¨¹ <code>ç¸½ç¶çå®¤(E000) â ç®¡çé¨(E001) â äººè³èª²(E011)</code>ï¼å¡å·¥ <code>E100</code>ï¼äººè³èª²ï¼è«å â ç°½æ ¸é <code>E011 â E001 â E000</code>ï¼ä¸éï¼ã
+  </div>
+</section>
+
+<section id="full-flow">
+  <h2>å®æ´æµç¨èµ°ä¸éï¼è«åå¾éåºå°æ ¸åï¼</h2>
+  <p>ä»¥ E100ï¼äººè³èª²ä¸è¬å¡å·¥ï¼è«ç¹ä¼çºä¾ï¼ä¸å¼µç³è«å¾éåºèµ°å°æ ¸åçå®æ´ API æµç¨ï¼</p>
+<pre><code>KEY=cfct_live_xxx   # API Key
+B=https://cfct.sditt.com.tw
+
+# â  å¡å·¥ E100 éåºç¹ä¼ â ç³»çµ±èªåå±éä¸éç°½æ ¸é E011âE001âE000
+curl -sS -X POST $B/api/application \
+  -H "X-Api-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"applicantEmpNo":"E100","category":"leave","leaveTypeCode":"annual",
+       "startTime":"2026-07-01T09:00:00","endTime":"2026-07-01T18:00:00","reason":"å®¶åº­æé"}'
+# â {"success":true,"data":{"seqNo":5,"appNo":"REQ-2026-000005","status":"pending","stepCount":3}}
+# ï¼ç¬¬ 1 éä¸»ç®¡ E011 ç LINE åææ¶å°ãð æ¨æä¸å¼µå¾ç°½æ ¸çç³è«ãï¼
+
+# â¡ ä¸»ç®¡ E011 æ¥èªå·±çå¾ç°½åè¡¨ï¼æçå°éå¼µ
+curl -sS -H "X-Api-Key: $KEY" "$B/api/approval/inbox?employeeNo=E011"
+
+# â¢ E011 æ ¸å â æ¨é²ç¬¬ 2 éï¼E001ï¼
+curl -sS -X PATCH $B/api/approval/5/approve \
+  -H "X-Api-Key: $KEY" -H "Content-Type: application/json" -d '{"actorEmpNo":"E011"}'
+# â {"success":true,"data":{"seqNo":5,"status":"pending","currentStep":2}}
+
+# â£ E001 æ ¸å â æ¨é²ç¬¬ 3 éï¼E000ï¼
+curl -sS -X PATCH $B/api/approval/5/approve \
+  -H "X-Api-Key: $KEY" -H "Content-Type: application/json" -d '{"actorEmpNo":"E001"}'
+
+# â¤ E000 æ ¸åï¼æå¾ä¸éï¼â æ´å¼µ approved
+curl -sS -X PATCH $B/api/approval/5/approve \
+  -H "X-Api-Key: $KEY" -H "Content-Type: application/json" -d '{"actorEmpNo":"E000","comment":"å"}'
+# â {"success":true,"data":{"seqNo":5,"status":"approved","currentStep":3}}
+# ï¼ç³è«äºº E100 ç LINE æ¶å°ãâ æ¨çç³è«å·²æ ¸åãï¼
+
+# ä»»ä¸æå»ï¼å¡å·¥æ¥èªå·±çå® + ç°½æ ¸æéè»¸
+curl -sS -H "X-Api-Key: $KEY" "$B/api/application/5" | jq '.data | {status, steps}'</code></pre>
+
+  <div class="callout info">
+    <strong>è®åè·¯å¾ï¼</strong>
+    <ul style="margin:6px 0 0">
+      <li><strong>æä»£çäºº</strong>ï¼éåºæå¸¶ <code>agentEmpNo</code> â <strong>ç´ç´é</strong>ï¼ä¸å½±é¿æµç¨ï¼ç§å¸¸é²ç¬¬ 1 éï¼ä»£çäººåªæ¶å°ä¸åç¥æéç¥ï¼ç¡éç¢ºèªï¼ã</li>
+      <li><strong>é§å</strong>ï¼ä»»ä¸é <code>PATCH â¦/reject</code> â æ´å¼µ <code>rejected</code>ã</li>
+      <li><strong>éåè£ä»¶</strong>ï¼<code>PATCH â¦/return</code> â <code>need_supplement</code>ï¼å¡å·¥ <code>POST â¦/supplement</code> è£ä»¶å¾åå°è©²ééç°½ã</li>
+      <li><strong>æ¤é·</strong>ï¼ç°½æ ¸ä¸­å¡å·¥å¯ <code>PATCH â¦/cancel</code> æ¶åã</li>
+    </ul>
+  </div>
+</section>
+
+<section id="scenarios">
+  <h2>æå¢å¼å«æµç¨ï¼æ¯ä»¶äºè¦å¼å«åªæ¯ãä¾åºæéº¼åï¼</h2>
+  <div class="callout info"><strong>åçéè£¡ï¼</strong>æ¯ä»¶äºææãç¬¬å¹¾æ­¥ â å¼å«åªæ¯ â ç¨ä»éº¼å¼ / ä»éº¼çæããææ <code>/api/*</code> é½è¦å¸¶ header <code>X-Api-Key</code>ï¼åæ¯å®æ´åæ¸è¦ä¸æ¹åç¯ã</div>
+
+  <h3>ãå¡å·¥ãéåºè«åï¼å ç­</h3>
+  <ol>
+    <li>è¼å¥åå¥ä¸æï¼<code>GET /api/leave-type/list?category=leave</code>ï¼æ <code>overtime</code>ï¼</li>
+    <li>ï¼è¦é¸ä»£çäººæéè¦ï¼è¼å¥äººå¡ï¼<code>GET /api/employee/list</code></li>
+    <li>éåºï¼<code>POST /api/application</code>ï¼bodyï¼<code>applicantEmpNo, category, leaveTypeCode, startTime, endTime, hours, reason, agentEmpNo(é¸å¡«)</code>ï¼â åå³ <code>seqNo</code> / <code>appNo</code> / <code>status</code></li>
+    <li>ï¼è¦éè­ææéè¦ï¼ä¸å³éä»¶ï¼<code>POST /api/attachment</code>ï¼multipartï¼<code>file, appSeqNo=ä¸ä¸æ­¥ç seqNo, kind, uploaderEmpNo</code>ï¼</li>
+  </ol>
+
+  <h3>ãå¡å·¥ãçèªå·±çç³è«</h3>
+  <ol>
+    <li>åè¡¨ï¼<code>GET /api/application/mine?employeeNo=</code> â æ¯å¼µå®ç <code>seqNo</code> / <code>status</code> / <code>rowVer</code></li>
+    <li>å®ç­ï¼ç°½æ ¸é²åº¦ï¼<code>GET /api/application/{seqNo}</code>ï¼å« <code>steps[]</code> æéè»¸ï¼</li>
+  </ol>
+
+  <h3>ãå¡å·¥ãæ¤é·ç³è«</h3>
+  <ol>
+    <li>å <code>GET /api/application/mine?employeeNo=</code> â åè©²å® <code>seqNo</code> è <code>rowVer</code></li>
+    <li><code>PATCH /api/application/{seqNo}/cancel</code>ï¼bodyï¼<code>applicantEmpNo, rowVer</code>ï¼ã<strong>é <code>status=pending</code></strong></li>
+  </ol>
+
+  <h3>ãå¡å·¥ãè£ä»¶ï¼è¢«ä¸»ç®¡éåå¾ï¼</h3>
+  <ol>
+    <li>å®è® <code>status=need_supplement</code>ï¼å¡å·¥ LINE ææ¶å°éç¥ï¼</li>
+    <li>ï¼è¦è£æªï¼<code>POST /api/attachment</code></li>
+    <li>ééï¼<code>POST /api/application/{seqNo}/supplement</code>ï¼bodyï¼<code>applicantEmpNo, rowVer</code>ï¼â åå°éåé£ééç°½</li>
+  </ol>
+
+  <h3>ãä¸»ç®¡ãç°½æ ¸</h3>
+  <ol>
+    <li>å¾ç°½æ¸å®ï¼<code>GET /api/approval/inbox?employeeNo=</code> â å <code>seqNo</code> è <code>rowVer</code></li>
+    <li>æ ¸åï¼é§åï¼éåï¼<code>PATCH /api/approval/{seqNo}/approve</code>ï¼æ <code>reject</code> / <code>return</code>ï¼bodyï¼<code>actorEmpNo, comment(é¸å¡«), rowVer</code>ï¼â éæä¸ä¸éç <code>pending</code>ã<code>currentStep+1</code>ï¼æå¾ä¸éé â <code>approved</code></li>
+  </ol>
+
+  <h3>ãä¸»ç®¡ãçé¨éï¼å«å­é¨éï¼å¨é¨ç³è«</h3>
+  <ol>
+    <li><code>GET /api/approval/dept-list?employeeNo=&amp;status=</code>ï¼<code>status</code> çç©ºï¼ä¸éçæï¼â èªå·±ç®¡çä¹é¨é<strong>ï¼ææå­é¨é</strong>çç³è«</li>
+  </ol>
+
+  <h3>ãäººè³ãçå¨å¬å¸ï¼å¯åº</h3>
+  <ol>
+    <li>å¨å¬å¸æ¥è©¢ï¼<code>GET /api/hr/application/all?status=&amp;deptNo=&amp;category=&amp;from=&amp;to=</code>ï¼æ¢ä»¶é½å¯çç©ºï¼</li>
+    <li>å¯åº CSVï¼<code>GET /api/hr/application/export?â¦</code>ï¼åæ¢ä»¶ï¼</li>
+  </ol>
+
+  <div class="callout info">
+    <strong>ä¸å®è¦è¨çç¸ä¾ï¼å®¹æè¸©é·ï¼ï¼</strong>
+    <ul style="margin:6px 0 0">
+      <li>è¦æ¹åï¼<code>cancel</code>ï¼<code>supplement</code>ï¼<code>approve</code>â¦ï¼<strong>ä¸å®å GET</strong> æ¿è©²å®ç¶ä¸ç <code>rowVer</code> åå¸¶ä¸ã</li>
+      <li><code>seqNo</code> ä¾èªéå® response æååè¡¨ï¼mineï¼inboxï¼dept-listï¼hrï¼ã</li>
+      <li>çæåæï¼æ¤é·é <code>pending</code>ï¼è£ä»¶é <code>need_supplement</code>ï¼ç°½æ ¸éãç¾å¨è¼ªå°æ¬äººä¸è©²é <code>pending</code>ãã</li>
+      <li>å <code>{"success":false,"conflict":true}</code> ï¼è³æè¢«å¥äººæ¹é â éæ° GET æ¿æ° <code>rowVer</code> åè©¦ã</li>
+      <li><strong>ä»£çäºº</strong>ï¼éå®å¸¶ <code>agentEmpNo</code> å°±å¥½ï¼ç´ç´éï¼ï¼<strong>æ²æä»»ä½å¾çº API è¦å¼å«</strong>ã</li>
+    </ul>
+  </div>
+</section>
+
+<section id="leave-type">
+  <h2>åå¥å­å¸ <span class="tag live">å·²å¯¦ä½</span></h2>
+  <div class="callout info"><strong>æå¢ï¼</strong>å¡å·¥æéè«å / å ç­è¡¨å®æï¼åç«¯ç¨ <code>?category=leave</code> æ <code>overtime</code> è¼å¥å°æçåå¥ä¸æï¼å«é¡è²å¾½ç« ãæåç³è«ææ¸æç¤ºï¼ï¼ä¸ç¨åç«¯å¯«æ­»åå¥æ¸å®ã</div>
+  <div class="endpoint-header"><span class="method get">GET</span><span class="method-path">/api/leave-type/list?category=leave|overtime</span></div>
+  <p>è«å / å ç­è¡¨å®ä¸æç¨ã<code>category</code> ä¸å¸¶=å¨é¨ã<code>leave</code>=è«åã<code>overtime</code>=å ç­ãå¦æ <code>GET /api/leave-type/{seqNo}</code> åå®ç­ã</p>
+  <table>
+    <tr><th width="120">TypeCode</th><th width="120">TypeName</th><th>Category</th><th>æ¯èª</th><th>æ¨ç¤ºè²</th></tr>
+    <tr><td>personal</td><td>äºå</td><td>leave</td><td>å¦</td><td>#3b82f6</td></tr>
+    <tr><td>annual</td><td>ç¹ä¼</td><td>leave</td><td>æ¯</td><td>#22c55e</td></tr>
+    <tr><td>sick</td><td>çå</td><td>leave</td><td>æ¯</td><td>#ef4444</td></tr>
+    <tr><td>official</td><td>å¬å</td><td>leave</td><td>æ¯</td><td>#14b8a6</td></tr>
+    <tr><td>public_out</td><td>å¬åº</td><td>leave</td><td>æ¯</td><td>#10b981</td></tr>
+    <tr><td>ot_weekday</td><td>å¹³æ¥å ç­</td><td>overtime</td><td>æ¯</td><td>#f59e0b</td></tr>
+    <tr><td>ot_holiday</td><td>åæ¥å ç­</td><td>overtime</td><td>æ¯</td><td>#f59e0b</td></tr>
+    <tr><td>ot_national</td><td>åå®åæ¥å ç­</td><td>overtime</td><td>æ¯</td><td>#f59e0b</td></tr>
+  </table>
+  <p>åææ¯ç­å¦å« <code>advanceHours</code>ï¼å»ºè­°æåç³è«ææ¸ï¼ã</p>
+<pre><code># è¼å¥è«ååå¥ä¸æ
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/leave-type/list?category=leave" | jq
+# è¼å¥å ç­å¥
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/leave-type/list?category=overtime" | jq</code></pre>
+</section>
+
+<section id="submit">
+  <h2>éåºç³è« <span class="tag live">å·²å¯¦ä½</span></h2>
+  <div class="callout info"><strong>æå¢ï¼</strong>æå°å¡å·¥ï¼äººè³èª²ï¼è¦è«ç¹ä¼ â åç«¯å¸¶ <code>leaveTypeCode:"annual"</code> èèµ·è¿æé POST ä¸ä¾ãç³»çµ±èªåæ²¿çµç¹æ¨¹æ¾åºãäººè³ä¸»ç®¡ â ç®¡çé¨ä¸»ç®¡ â ç¸½ç¶çãä¸éï¼<strong>å¡å·¥ä¸ç¨èªå·±é¸ç°½æ ¸äºº</strong>ã</div>
+  <div class="endpoint-header"><span class="method post">POST</span><span class="method-path">/api/application</span></div>
+  <p>å»ºç«ç³è«å®ä¸¦ä¾ãç°½æ ¸éè¦åãèªåå±éç°½æ ¸éå¡ã</p>
+
+  <h3>Body</h3>
+  <table>
+    <tr><th>æ¬ä½</th><th>åå¥</th><th>å¿å¡«</th><th>èªªæ</th></tr>
+    <tr><td><code>applicantEmpNo</code></td><td>string</td><td>â</td><td>ç³è«äººå¡å·¥ç·¨èï¼é å­å¨ï¼</td></tr>
+    <tr><td><code>category</code></td><td>string</td><td>â</td><td><code>leave</code> / <code>overtime</code></td></tr>
+    <tr><td><code>leaveTypeCode</code></td><td>string</td><td>â</td><td>åå¥ä»£ç¢¼ï¼è¦åå¥å­å¸ï¼</td></tr>
+    <tr><td><code>startTime</code> / <code>endTime</code></td><td>datetime</td><td>â</td><td>èµ·è¿æéï¼start é æ©æ¼ endï¼</td></tr>
+    <tr><td><code>hours</code></td><td>decimal?</td><td></td><td>ææ¸</td></tr>
+    <tr><td><code>reason</code></td><td>string?</td><td></td><td>åå  / äºç±</td></tr>
+    <tr><td><code>agentEmpNo</code></td><td>string?</td><td></td><td>æå®ä»£çäººï¼ç´ç´éï¼ä¸å½±é¿ç°½æ ¸æµç¨ï¼</td></tr>
+    <tr><td><code>remark</code></td><td>string?</td><td></td><td>åè¨»</td></tr>
+  </table>
+
+  <h3>Response Â· <code>data</code></h3>
+  <table>
+    <tr><th width="160">æ¬ä½</th><th>èªªæ</th></tr>
+    <tr><td><code>seqNo</code></td><td>ç³è«å®ä¸»éµ</td></tr>
+    <tr><td><code>appNo</code></td><td>é¡¯ç¤ºå®èï¼å¦ <code>REQ-2026-000001</code></td></tr>
+    <tr><td><code>status</code></td><td>éåºå¾çæï¼è¦ä¸æ¹çæå­å¸ï¼</td></tr>
+    <tr><td><code>stepCount</code></td><td>å±éåºçç°½æ ¸éå¡æ¸</td></tr>
+  </table>
+<pre><code>curl -sS -X POST https://cfct.sditt.com.tw/api/application \
+  -H "X-Api-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"applicantEmpNo":"E100","category":"leave","leaveTypeCode":"annual",
+       "startTime":"2026-06-10T09:00:00","endTime":"2026-06-10T18:00:00",
+       "hours":8,"reason":"å®¶åº­æé"}'
+# â {"success":true,"data":{"seqNo":1,"appNo":"REQ-2026-000001","status":"pending","stepCount":3}}</code></pre>
+</section>
+
+<section id="query">
+  <h2>æ¥è©¢ <span class="tag live">å·²å¯¦ä½</span></h2>
+  <div class="callout info"><strong>æå¢ï¼</strong>å¡å·¥å¨ãæçç³è«ç´éãçæ¯å¼µå®ççæï¼é»é²å®ç­çãå¯©æ ¸æµç¨ãæéè»¸ï¼ä¸ç¼ç¥éç®åå¡å¨åªä¸éãèª°éæ²ç°½ãèª°éåäºï¼å«éååå ï¼ã</div>
+  <div class="endpoint-header"><span class="method get">GET</span><span class="method-path">/api/application/mine?employeeNo=E100</span></div>
+  <p>æå¡å·¥çç³è«åè¡¨ï¼æ°å°èï¼ã</p>
+  <div class="endpoint-header"><span class="method get">GET</span><span class="method-path">/api/application/{seqNo}</span></div>
+  <p>å®ç­å®æ´è³æï¼<strong>å« <code>steps[]</code> ç°½æ ¸æéè»¸</strong>ï¼æ¯é <code>stepOrder</code> / <code>approverEmpNo</code> / <code>approverName</code> / <code>stepState</code> / <code>actedAt</code> / <code>comment</code>ï¼ã</p>
+<pre><code># æçç³è«åè¡¨
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/application/mine?employeeNo=E100" | jq
+
+# å®ç­ + ç°½æ ¸æéè»¸ï¼çå¡å¨åªä¸éï¼
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/application/5" | jq '.data | {appNo, status, currentStep, steps}'</code></pre>
+</section>
+
+<section id="status-dict">
+  <h2>çæå­å¸</h2>
+  <table>
+    <tr><th width="160">Status</th><th>èªªæ</th></tr>
+    <tr><td><code>pending</code></td><td>ç°½æ ¸ä¸­ï¼<code>currentStep</code> æç®åéå¡ï¼</td></tr>
+    <tr><td><code>approved</code></td><td>å·²æ ¸å</td></tr>
+    <tr><td><code>rejected</code></td><td>å·²é§å</td></tr>
+    <tr><td><code>need_supplement</code></td><td>å¾è£ä»¶</td></tr>
+    <tr><td><code>cancelled</code></td><td>å·²æ¤é·</td></tr>
+  </table>
+  <p>éå¡ <code>stepState</code>ï¼<code>pending</code> / <code>approved</code> / <code>rejected</code> / <code>returned</code> / <code>skipped</code>ã</p>
+</section>
+
+<section id="approval-action">
+  <h2>å¯©æ ¸åä½ï¼ä¸»ç®¡ç«¯ï¼<span class="tag live">å·²å¯¦ä½</span></h2>
+  <div class="callout info"><strong>æå¢ï¼</strong>äººè³ä¸»ç®¡ç»å¥å¾å¨ãå¾å¯©æ ¸ãçå°è©²ä»ç°½çå®ï¼<code>inbox</code>ï¼â æ ¸åå¾ä¸éçµ¦ä¸ä¸éï¼ç®¡çé¨ä¸»ç®¡ï¼ï¼æéåè£ä»¶ä¸¦éåå ãæå¾ä¸éï¼ç¸½ç¶çï¼æ ¸åï¼æ´å¼µå®å³ <code>approved</code>ï¼ä»»ä¸éé§ååæ´å¼µ <code>rejected</code>ã</div>
+  <p>ç¡éä½¿ç¨èç»å¥èªè­ â åä½è <code>actorEmpNo</code> ç±å¼å«ç«¯å¸¶å¥ï¼å¾ç«¯é©è­å¶æ¯å¦çº<strong>ç¶åéå¡ç°½æ ¸äºº</strong>ã</p>
+
+  <div class="endpoint-header"><span class="method get">GET</span><span class="method-path">/api/approval/inbox?employeeNo=E011</span></div>
+  <p>ä¸»ç®¡<strong>å¾ç°½</strong>åè¡¨ï¼ç®åéå¡ï¼<code>CurrentStep</code>ï¼ææ´¾çµ¦æãä¸è©²éä» pending çç³è«ãæ¯ç­å« <code>stepOrder</code>ï¼ææ¯ç¬¬å¹¾éï¼è <code>rowVer</code>ï¼ç°½æ ¸æå¸¶ååæ¨è§éï¼ï¼å¦å« <code>departmentName</code>ã<code>agentEmpNo</code>ã<code>agentEmpName</code>ã<code>agentConfirmState</code>ã</p>
+
+  <div class="endpoint-header"><span class="method get">GET</span><span class="method-path">/api/approval/dept-list?employeeNo=E011&amp;status=</span></div>
+  <p>ä¸»ç®¡<strong>é¨éå¯©æ ¸åè¡¨</strong>ï¼çãèªå·±ç®¡çä¹é¨é<strong>ï¼ææå­é¨é</strong>ãææäººçç³è«ï¼ç¨®å­ï¼<code>Department.ManagerEmpNo</code>=æï¼åæ²¿ <code>ParentDeptNo</code> å¾ä¸éè¿´å±éå­å­«é¨éï¼ï¼<strong>ä¸éçæ</strong>ï¼éåº/ç°½æ ¸ä¸­/å·²æ ¸å/é§å/éå/æ¤é·å¨çå¾å°ï¼ï¼<code>status</code> å¯é¸ç¯©é¸ãè inbox ä¸åï¼inbox åªæãç¾å¨è¼ªå°æç°½ãçï¼éæ¯æ¯æ´åé¨éï¼å«ä¸å±¤ï¼çå¨è²ãåå³æ¯ç­å¦å« <code>departmentName</code>ã<code>agentEmpName</code>ã<code>agentConfirmState</code>ã</p>
+<pre><code># å¾ç°½ï¼åªæç¾å¨è¼ªå°æç°½çï¼
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/approval/inbox?employeeNo=E011" | jq
+
+# é¨éå¨è²ï¼æç®¡çé¨éææç³è«ï¼ä¸éçæï¼ï¼å¯å  &status=approved ç¯©é¸
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/approval/dept-list?employeeNo=E011" | jq</code></pre>
+
+  <div class="endpoint-header"><span class="method patch">PATCH</span><span class="method-path">/api/approval/{seqNo}/approve</span></div>
+  <div class="endpoint-header"><span class="method patch">PATCH</span><span class="method-path">/api/approval/{seqNo}/reject</span></div>
+  <div class="endpoint-header"><span class="method patch">PATCH</span><span class="method-path">/api/approval/{seqNo}/return</span></div>
+  <h3>Body</h3>
+  <table>
+    <tr><th>æ¬ä½</th><th>åå¥</th><th>å¿å¡«</th><th>èªªæ</th></tr>
+    <tr><td><code>actorEmpNo</code></td><td>string</td><td>â</td><td>ç°½æ ¸åä½èï¼é çºç¶åéå¡ç°½æ ¸äººï¼</td></tr>
+    <tr><td><code>comment</code></td><td>string?</td><td></td><td>é§å / éååå </td></tr>
+    <tr><td><code>rowVer</code></td><td>int?</td><td></td><td>æ¨è§éï¼å¸¶äºå°±æª¢æ¥ï¼</td></tr>
+  </table>
+  <table>
+    <tr><th width="160">åä½</th><th>ææ</th></tr>
+    <tr><td><strong>approve</strong></td><td>ç¶åéå¡ approved â æä¸ä¸éå <code>CurrentStep+1</code> çº pendingï¼<strong>æå¾ä¸éé â ç³è« approved</strong></td></tr>
+    <tr><td><strong>reject</strong></td><td>ç¶åéå¡ rejected â ç³è« <code>rejected</code></td></tr>
+    <tr><td><strong>return</strong></td><td>ç¶åéå¡ returned â ç³è« <code>need_supplement</code>ï¼å¾è£ä»¶ï¼</td></tr>
+  </table>
+  <p>éç¶åç°½æ ¸äºº â <code>"æ¨ä¸æ¯ç®åçç°½æ ¸äºº"</code>ï¼ç³è«é pending â <code>"ç³è«å®ç®åçæçº Xï¼ç¡æ³ç°½æ ¸"</code>ã</p>
+<pre><code># ä¸»ç®¡æ ¸åï¼ä¸éä¸éå¾ä¸ï¼æå¾ä¸ééå³ approvedï¼
+curl -sS -X PATCH https://cfct.sditt.com.tw/api/approval/5/approve \
+  -H "X-Api-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"actorEmpNo":"E011"}'</code></pre>
+</section>
+
+<section id="agent">
+  <h2>ä»£çäººï¼ç´ç´éï¼</h2>
+  <div class="callout info"><strong>æå¢ï¼</strong>A è«åæå¯æå® B ç¶ä»£çäººï¼ç´ç²¹<strong>è¨éãèª°æ¯ä»£çäººã</strong>ãç³è«<strong>ç´æ¥é²ä¸»ç®¡ç°½æ ¸</strong>ï¼B ä¸éåä»»ä½ç¢ºèªï¼B åªææ¶å°ä¸å LINE ç¥æãæ¨è¢«ç»è¨çºä»£çäººãã</div>
+  <p>éå®æå¸¶ <code>agentEmpNo</code> å³å¯ï¼è¦ãéåºç³è«ãï¼ï¼<strong>æ²æé¡å¤ç«¯é»è¦å¼å«</strong>ãä»£çäººè³è¨æåºç¾å¨ååè¡¨èå®ç­æ¥è©¢ï¼<code>agentEmpNo</code> / <code>agentEmpName</code>ï¼<code>agentConfirmState</code> åºå®çº <code>none</code>ï¼ä¿çæ¬ä½ï¼ã</p>
+  <div class="callout info"><strong>2026-06-09 è®æ´ï¼</strong>åæ¬çãä»£çäººç¢ºèªãæ©å¶ï¼<code>agent_pending</code> çæã<code>POST /api/agent-request/{seqNo}/accept|reject</code> åæï¼æçµç«¯é»ï¼å·²<strong>ç§»é¤</strong>ï¼ä»£çäººä¸åå¡æ§ç°½æ ¸ã</div>
+</section>
+
+<section id="cancel">
+  <h2>æ¤é· / è£ä»¶ <span class="tag live">å·²å¯¦ä½</span></h2>
+  <div class="callout info"><strong>æå¢ï¼</strong>å¡å·¥éé¯äºæ³æ¶å â æ¤é·ï¼è¢«ä¸»ç®¡éåè£ä»¶å¾ï¼è£ä¸è³æéé â è£ä»¶ãå©èé½åªéç³è«äººæ¬äººã</div>
+  <div class="endpoint-header"><span class="method patch">PATCH</span><span class="method-path">/api/application/{seqNo}/cancel</span></div>
+  <p>æ¤é·ï¼é <code>pending</code>ï¼â <code>cancelled</code>ãbody <code>{applicantEmpNo, rowVer?}</code>ã</p>
+  <div class="endpoint-header"><span class="method post">POST</span><span class="method-path">/api/application/{seqNo}/supplement</span></div>
+  <p>è£ä»¶ï¼é <code>need_supplement</code>ï¼â æè¢«éåçéå¡éè¨­å pendingãç³è«å <code>pending</code>ï¼éæ°æµè½å°è©²éä¸»ç®¡ãbody <code>{applicantEmpNo, rowVer?}</code>ã</p>
+<pre><code># æ¤é·ï¼ç°½æ ¸ä¸­ï¼ç³è«äººæ¬äººï¼
+curl -sS -X PATCH https://cfct.sditt.com.tw/api/application/5/cancel \
+  -H "X-Api-Key: $KEY" -H "Content-Type: application/json" -d '{"applicantEmpNo":"E100"}'
+
+# è¢«éåå¾è£ä»¶ééï¼åå°éåçé£ä¸ééç°½ï¼
+curl -sS -X POST https://cfct.sditt.com.tw/api/application/5/supplement \
+  -H "X-Api-Key: $KEY" -H "Content-Type: application/json" -d '{"applicantEmpNo":"E100"}'</code></pre>
+</section>
+
+<section id="attachment">
+  <h2>éä»¶ä¸å³ <span class="tag live">å·²å¯¦ä½</span></h2>
+  <div class="callout info"><strong>æå¢ï¼</strong>è«çåè¦éè¨ºæ·è­æãè£ä»¶è¦ä¸å³æä»¶ â ä¸å³æªæ¡éè¯å°ç³è«å®ï¼ä¸»ç®¡å¯©æ ¸æé»éçãæªæ¡å­ä¼ºæå¨ <code>wwwroot/uploads/attachments</code>ï¼é¨ç½²ä¿çï¼ã</div>
+  <div class="endpoint-header"><span class="method post">POST</span><span class="method-path">/api/attachment</span></div>
+  <p><strong>multipart/form-data</strong>ï¼å¯ä¸é JSON ç«¯é»ï¼ï¼<code>file</code> + <code>appSeqNo</code> + <code>kind</code>(proof/supplement) + <code>uploaderEmpNo?</code>ãä¸é 10MBï¼å <code>{seqNo, fileName, fileSize, url}</code>ã</p>
+  <div class="endpoint-header"><span class="method get">GET</span><span class="method-path">/api/attachment/list?appSeqNo=</span></div>
+  <p>ååºæç³è«çéä»¶ï¼metadataï¼ã</p>
+  <div class="endpoint-header"><span class="method get">GET</span><span class="method-path">/api/attachment/{seqNo}/download</span></div>
+  <p>ä¸è¼åæªã</p>
+<pre><code># ä¸å³è­ææä»¶ï¼multipartï¼
+curl -sS -X POST https://cfct.sditt.com.tw/api/attachment \
+  -H "X-Api-Key: $KEY" \
+  -F "file=@è¨ºæ·è­æ.pdf" -F "appSeqNo=5" -F "kind=proof" -F "uploaderEmpNo=E100"
+# â {"success":true,"data":{"seqNo":1,"fileName":"è¨ºæ·è­æ.pdf","fileSize":12345,"url":"/api/attachment/1/download"}}
+
+# ååºæç³è«çéä»¶ / ä¸è¼
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/attachment/list?appSeqNo=5" | jq
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/attachment/1/download" -o proof.pdf</code></pre>
+</section>
+
+<section id="notify">
+  <h2>çæè®æ´ LINE éç¥ <span class="tag live">å·²å¯¦ä½</span></h2>
+  <div class="callout info"><strong>æå¢ï¼</strong>å¡å·¥éåºç³è«ï¼ä¸»ç®¡ç LINE ç«å»æ¶å°ãæ¨æä¸å¼µå¾ç°½æ ¸ãï¼æ ¸å / é§å / éåæï¼ç³è«äºº LINE æ¶å°çµæéç¥ï¼ä¸ç¨ä¸ç´åç³»çµ±çã</div>
+  <p>éç¨ç«ç«¯é»ï¼æ¯<strong>å§é¨æ©å¶</strong>ï¼ç³è«éåº / æ ¸å / é§å / éå / ç»è¨ä»£çäººæï¼ä¾ <code>SYS_Account.LineUserId</code> æ¨ LINE æå­çµ¦ç¸éäººï¼ä¸éä¸»ç®¡ / ç³è«äºº / ä»£çäººï¼ãæ¥ç¾æ LINE pushï¼<strong>best-effort</strong>ï¼å¡å·¥æªç¶ LINE ææ¨æ­å¤±æåªè¨ logï¼ä¸å½±é¿ç°½æ ¸æµç¨ã</p>
+  <table>
+    <tr><th width="200">äºä»¶</th><th>éç¥å°è±¡</th></tr>
+    <tr><td>éåºï¼å¾ç°½ï¼</td><td>ç¬¬ 1 éä¸»ç®¡</td></tr>
+    <tr><td>éåºï¼ææå®ä»£çäººï¼</td><td>ä»£çäººï¼ç¥æè¢«ç»è¨çºä»£çäººï¼ç´ç´éï¼</td></tr>
+    <tr><td>æ ¸åï¼å¾ä¸éï¼</td><td>ä¸ä¸éä¸»ç®¡</td></tr>
+    <tr><td>æ ¸åï¼æå¾ä¸éï¼/ é§å / éå</td><td>ç³è«äºº</td></tr>
+  </table>
+</section>
+
+<section id="hr">
+  <h2>HR å¨è¦½ / å¯åº <span class="tag live">å·²å¯¦ä½</span></h2>
+  <div class="callout info"><strong>æå¢ï¼</strong>HR è¦çå¨å¬å¸è«å / å ç­çæ³ï¼ä¾é¨é / çæ / æ¥æ / åå¥ç¯©é¸ï¼ä¸¦å¯åº Excel åæå ±æå°å¸³ã</div>
+  <div class="endpoint-header"><span class="method get">GET</span><span class="method-path">/api/hr/application/all?status=&deptNo=&category=&from=&to=</span></div>
+  <p>å¨å¬å¸ç³è«ï¼å«ç³è«äºº / é¨é / åå¥åç¨±ï¼ï¼ææç¯©é¸çå¯é¸ã</p>
+  <div class="endpoint-header"><span class="method get">GET</span><span class="method-path">/api/hr/application/export?â¦</span></div>
+  <p>åæ¢ä»¶å¯åº CSVï¼UTF-8 BOMï¼Excel ç´æ¥éä¸­ææ­£å¸¸ï¼ã</p>
+<pre><code># å¨å¬å¸å¾ç°½ / ä¾é¨éç¯©
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/hr/application/all?status=pending&deptNo=D011" | jq
+
+# å¯åºå·²æ ¸åç CSVï¼Excel ç´æ¥éï¼
+curl -sS -H "X-Api-Key: $KEY" "https://cfct.sditt.com.tw/api/hr/application/export?status=approved" -o applications.csv</code></pre>
+</section>
+
+</main>
+
+<script src="/docs/_layout.js"></script>
+</body>
+</html>
+
