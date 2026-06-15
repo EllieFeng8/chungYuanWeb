@@ -74,6 +74,20 @@ function buildStepLabel(steps) {
     return `承辦人: ${currentStep.approverName || currentStep.approverEmpNo || '-'}`;
 }
 
+function calculateDurationHours(startTime, endTime) {
+    if (!startTime || !endTime) {
+        return null;
+    }
+
+    const startAt = new Date(startTime);
+    const endAt = new Date(endTime);
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+        return null;
+    }
+
+    return Number(((endAt.getTime() - startAt.getTime()) / (1000 * 60 * 60)).toFixed(2));
+}
+
 export default function ApprovalDetail() {
     const [showModal, setShowModal] = useState(false);
     const [returnReason, setReturnReason] = useState('proxy');
@@ -270,14 +284,84 @@ export default function ApprovalDetail() {
     const period = getApplicationPeriod(application);
     const statusLabel = getApplicationStatusLabel(application?.status);
     const workflowLabel = buildStepLabel(application?.steps);
-    const agentName = useMemo(
-        () => application?.agentName || application?.agentEmpName || application?.agentEmpNo || application?.proxyName || '-',
-        [application]
+    const applicationTypeName = getApplicationTypeName(application);
+    const isOvertimeApplication = String(applicationTypeName || '').includes('加班');
+    const isGeneralOvertime = String(applicationTypeName || '').includes('一般加班');
+    const isTravelAllowanceOvertime = String(applicationTypeName || '').includes('車趟津貼');
+    const reasonLabel = String(applicationTypeName || '').includes('加班') ? '加班原因' : '請假原因';
+    const overtimeHours = useMemo(() => {
+        if (!isGeneralOvertime) {
+            return null;
+        }
+
+        const rawHours = application?.hours ?? application?.Hours;
+        if (rawHours !== undefined && rawHours !== null && rawHours !== '') {
+            const parsedHours = Number(rawHours);
+            return Number.isNaN(parsedHours) ? null : parsedHours;
+        }
+
+        return calculateDurationHours(application?.startTime, application?.endTime);
+    }, [application?.Hours, application?.endTime, application?.hours, application?.startTime, isGeneralOvertime]);
+    const travelAllowanceAmount = useMemo(() => {
+        if (!isTravelAllowanceOvertime) {
+            return null;
+        }
+
+        const rawAmount = application?.hours ?? application?.Hours;
+        if (rawAmount === undefined || rawAmount === null || rawAmount === '') {
+            return null;
+        }
+
+        const parsedAmount = Number(rawAmount);
+        return Number.isNaN(parsedAmount) ? null : parsedAmount;
+    }, [application?.Hours, application?.hours, isTravelAllowanceOvertime]);
+    const agentName = useMemo(() => {
+        const primaryEmpNo = String(application?.agentEmpNo || '').trim();
+        const matchedEmployee = employees.find(
+            (employee) => String(employee.employeeNo || '').trim() === primaryEmpNo
+        );
+
+        return matchedEmployee?.employeeName
+            || application?.agentName
+            || application?.agentEmpName
+            || application?.agentEmpNo
+            || application?.proxyName
+            || '-';
+    }, [application, employees]);
+    const agent2Name = useMemo(() => {
+        const secondaryEmpNo = String(application?.agent2EmpNo || '').trim();
+        const matchedEmployee = employees.find(
+            (employee) => String(employee.employeeNo || '').trim() === secondaryEmpNo
+        );
+
+        return matchedEmployee?.employeeName
+            || application?.agent2Name
+            || application?.agent2EmpName
+            || application?.agent2EmpNo
+            || '-';
+    }, [application, employees]);
+    const agent1StatusLabel = useMemo(
+        () => getAgentStatusLabel(
+            application?.agentConfirmState || application?.agentStatus,
+            agentName !== '-'
+        ),
+        [application?.agentConfirmState, application?.agentStatus, agentName]
     );
-    const hasAgent = agentName !== '-';
-    const agentStatusLabel = useMemo(
-        () => getAgentStatusLabel(application?.agentConfirmState || application?.agentStatus, hasAgent),
-        [application?.agentConfirmState, application?.agentStatus, hasAgent]
+    const agent2StatusLabel = useMemo(
+        () => getAgentStatusLabel(
+            application?.agent2ConfirmState
+            || application?.agent2Status
+            || application?.agentConfirmState
+            || application?.agentStatus,
+            agent2Name !== '-'
+        ),
+        [
+            application?.agent2ConfirmState,
+            application?.agent2Status,
+            application?.agentConfirmState,
+            application?.agentStatus,
+            agent2Name,
+        ]
     );
 
     function showSelfApprovalAlert() {
@@ -541,7 +625,7 @@ export default function ApprovalDetail() {
                         <label className="text-xs font-medium text-on-surface-variant">假別類型</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
                             <CheckCircle2 size={16} className="text-primary fill-primary/10" />
-                            <span className="text-sm">{getApplicationTypeName(application)}</span>
+                            <span className="text-sm">{applicationTypeName}</span>
                         </div>
                     </div>
 
@@ -559,20 +643,38 @@ export default function ApprovalDetail() {
                             <span className="text-sm">{applicantManagerName}</span>
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-medium text-on-surface-variant">代理人姓名</label>
-                        <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                            <Lock size={16} className="text-outline-variant" />
-                            <span className="text-sm">{agentName}</span>
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-medium text-on-surface-variant">代理狀態</label>
-                        <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                            <CheckCircle2 size={16} className="text-primary fill-primary/10" />
-                            <span className="text-sm">{agentStatusLabel}</span>
-                        </div>
-                    </div>
+                    {!isOvertimeApplication ? (
+                        <>
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-on-surface-variant">代理人 1</label>
+                                <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
+                                    <Lock size={16} className="text-outline-variant" />
+                                    <span className="text-sm">{agentName}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-on-surface-variant">代理人 2</label>
+                                <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
+                                    <Lock size={16} className="text-outline-variant" />
+                                    <span className="text-sm">{agent2Name}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-on-surface-variant">代理人 1 狀態</label>
+                                <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
+                                    <CheckCircle2 size={16} className="text-primary fill-primary/10" />
+                                    <span className="text-sm">{agent1StatusLabel}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-on-surface-variant">代理人 2 狀態</label>
+                                <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
+                                    <CheckCircle2 size={16} className="text-primary fill-primary/10" />
+                                    <span className="text-sm">{agent2StatusLabel}</span>
+                                </div>
+                            </div>
+                        </>
+                    ) : null}
                     <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">開始日期</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
@@ -587,8 +689,26 @@ export default function ApprovalDetail() {
                             <span className="text-sm">{period.endDate} {period.endTime}</span>
                         </div>
                     </div>
+                    {isGeneralOvertime ? (
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-on-surface-variant">加班時數</label>
+                            <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
+                                <CheckCircle2 size={16} className="text-primary fill-primary/10" />
+                                <span className="text-sm">{overtimeHours ?? '-'} {overtimeHours !== null ? '小時' : ''}</span>
+                            </div>
+                        </div>
+                    ) : null}
+                    {isTravelAllowanceOvertime ? (
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-on-surface-variant">金額</label>
+                            <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
+                                <CheckCircle2 size={16} className="text-primary fill-primary/10" />
+                                <span className="text-sm">{travelAllowanceAmount ?? '-'} {travelAllowanceAmount !== null ? '元' : ''}</span>
+                            </div>
+                        </div>
+                    ) : null}
                     <div className="md:col-span-2 space-y-2">
-                        <label className="text-xs font-medium text-on-surface-variant">請假原因</label>
+                        <label className="text-xs font-medium text-on-surface-variant">{reasonLabel}</label>
                         <div className="min-h-[120px] p-4 bg-surface-container-lowest border border-outline-variant rounded-lg">
                             <p className="text-sm leading-relaxed">{application.reason || '-'}</p>
                         </div>

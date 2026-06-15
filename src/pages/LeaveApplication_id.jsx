@@ -4,6 +4,8 @@ import Swal from 'sweetalert2';
 import { useNavigate, useParams } from 'react-router-dom';
 import { FileText, Lock, ChevronDown, Plus } from '../components/icons';
 import Layout from '../components/Layout';
+import LeavePolicyInfo from '../components/LeavePolicyInfo';
+import TimeSelect24 from '../components/TimeSelect24';
 import {
   createApplication,
   getAccountByLineUserId,
@@ -117,7 +119,6 @@ export default function LeaveApplication() {
   const [employees, setEmployees] = useState([]);
   const [currentEmployee, setCurrentEmployee] = useState(null);
   const [selectedLeaveTypeCode, setSelectedLeaveTypeCode] = useState('');
-  const [selectedAgentEmpNo, setSelectedAgentEmpNo] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [startTime, setStartTime] = useState('');
@@ -135,9 +136,25 @@ export default function LeaveApplication() {
     [leaveTypes, selectedLeaveTypeCode]
   );
 
-  const agentOptions = useMemo(() => {
-    return employees.filter((employee) => employee.employeeNo && employee.employeeNo !== currentEmployee?.employeeNo);
-  }, [currentEmployee?.employeeNo, employees]);
+  const agent1DisplayName = useMemo(() => {
+    const agentEmpNo = String(currentEmployee?.agent1EmpNo || '').trim();
+    if (!agentEmpNo) {
+      return '-';
+    }
+
+    const matchedEmployee = employees.find((employee) => String(employee.employeeNo || '').trim() === agentEmpNo);
+    return matchedEmployee?.employeeName || agentEmpNo;
+  }, [currentEmployee?.agent1EmpNo, employees]);
+
+  const agent2DisplayName = useMemo(() => {
+    const agentEmpNo = String(currentEmployee?.agent2EmpNo || '').trim();
+    if (!agentEmpNo) {
+      return '-';
+    }
+
+    const matchedEmployee = employees.find((employee) => String(employee.employeeNo || '').trim() === agentEmpNo);
+    return matchedEmployee?.employeeName || agentEmpNo;
+  }, [currentEmployee?.agent2EmpNo, employees]);
 
   const currentDepartmentName = useMemo(
     () => currentEmployee?.departmentName || '-',
@@ -210,6 +227,8 @@ export default function LeaveApplication() {
           departmentName: matchedEmployee?.departmentName || '',
           managerEmpNo: matchedEmployee?.managerEmpNo || '',
           managerEmpName: matchedEmployee?.managerEmpName || matchedManager?.employeeName || '',
+          agent1EmpNo: matchedEmployee?.agent1EmpNo || '',
+          agent2EmpNo: matchedEmployee?.agent2EmpNo || '',
           lineUserId: lineUserId.trim(),
         };
 
@@ -363,7 +382,8 @@ export default function LeaveApplication() {
         endTime: toDateTimeString(endDate, endTime),
         hours: calculateHours(startAt, endAt),
         reason: reason.trim() || null,
-        agentEmpNo: selectedAgentEmpNo || null,
+        agentEmpNo: String(currentEmployee?.agent1EmpNo || '').trim() || null,
+        agent2EmpNo: String(currentEmployee?.agent2EmpNo || '').trim() || null,
         remark: remark.trim() || null,
       };
 
@@ -414,6 +434,8 @@ export default function LeaveApplication() {
           </h2>
         </div>
 
+        <LeavePolicyInfo />
+
         <section className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden mb-8">
           <div className="h-1.5 bg-primary w-full"></div>
           <div className="p-8">
@@ -424,6 +446,17 @@ export default function LeaveApplication() {
 
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">員工姓名</label>
+                  <div className="relative">
+                    <input
+                        className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
+                        readOnly
+                        value={currentEmployee?.employeeName || getStoredDisplayName() || (loading ? '載入中...' : '找不到員工資料')}
+                    />
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">員編</label>
                   <div className="relative">
@@ -436,17 +469,7 @@ export default function LeaveApplication() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">員工姓名</label>
-                  <div className="relative">
-                    <input
-                      className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
-                      readOnly
-                      value={currentEmployee?.employeeName || getStoredDisplayName() || (loading ? '載入中...' : '找不到員工資料')}
-                    />
-                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
-                  </div>
-                </div>
+
 
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">部門</label>
@@ -472,56 +495,58 @@ export default function LeaveApplication() {
                   </div>
                 </div>
 
+
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">代理人 1</label>
+                  <div className="relative">
+                    <input
+                      className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
+                      readOnly
+                      value={agent1DisplayName}
+                    />
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">代理人 2</label>
+                  <div className="relative">
+                    <input
+                      className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
+                      readOnly
+                      value={agent2DisplayName}
+                    />
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">類型</label>
                   <div className="relative">
                     <select
-                      value={selectedLeaveTypeCode}
-                      onChange={(event) => setSelectedLeaveTypeCode(event.target.value)}
-                      disabled={loading || saving || !leaveTypes.length}
-                      className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                        value={selectedLeaveTypeCode}
+                        onChange={(event) => setSelectedLeaveTypeCode(event.target.value)}
+                        disabled={loading || saving || !leaveTypes.length}
+                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
                     >
                       {leaveTypes.length ? (
-                        leaveTypes.map((option) => (
-                          <option key={getTypeCode(option)} value={getTypeCode(option)}>
-                            {getTypeName(option)}
-                          </option>
-                        ))
+                          leaveTypes.map((option) => (
+                              <option key={getTypeCode(option)} value={getTypeCode(option)}>
+                                {getTypeName(option)}
+                              </option>
+                          ))
                       ) : (
-                        <option value="">{loading ? '載入中...' : '無可用請假類型'}</option>
+                          <option value="">{loading ? '載入中...' : '無可用請假類型'}</option>
                       )}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" size={18} />
                   </div>
-                  {selectedLeaveType ? (
-                    <p className={`text-xs ${ACCENT_TEXT}`}>
-                      建議至少提前 {getAdvanceHours(selectedLeaveType) ?? 0} 小時申請
-                    </p>
-                  ) : null}
+                  {/*{selectedLeaveType ? (*/}
+                  {/*  <p className={`text-xs ${ACCENT_TEXT}`}>*/}
+                  {/*    建議至少提前 {getAdvanceHours(selectedLeaveType) ?? 0} 小時申請*/}
+                  {/*  </p>*/}
+                  {/*) : null}*/}
                 </div>
-
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">代理人姓名</label>
-                  <div className="relative">
-                    <select
-                      value={selectedAgentEmpNo}
-                      onChange={(event) => setSelectedAgentEmpNo(event.target.value)}
-                      disabled={loading || saving}
-                      className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
-                    >
-                      <option value="">不指定代理人</option>
-                      {agentOptions.map((employee) => (
-                        <option key={employee.employeeNo} value={employee.employeeNo}>
-                          {employee.employeeName}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" size={18} />
-                  </div>
-                </div>
-
-                <div className="hidden md:block"></div>
-
                 <div className="md:col-span-2">
                   <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                     <div className="space-y-2">
@@ -560,13 +585,11 @@ export default function LeaveApplication() {
                       <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
                         開始時間 <span className="text-error">*</span>
                       </label>
-                      <input
-                        type="time"
+                      <TimeSelect24
                         value={startTime}
-                        onChange={(event) => setStartTime(event.target.value)}
-                        required
+                        onChange={setStartTime}
                         disabled={saving}
-                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                        required
                       />
                     </div>
 
@@ -574,13 +597,11 @@ export default function LeaveApplication() {
                       <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
                         結束時間 <span className="text-error">*</span>
                       </label>
-                      <input
-                        type="time"
+                      <TimeSelect24
                         value={endTime}
-                        onChange={(event) => setEndTime(event.target.value)}
-                        required
+                        onChange={setEndTime}
                         disabled={saving}
-                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                        required
                       />
                     </div>
                   </div>
@@ -688,7 +709,7 @@ export default function LeaveApplication() {
           >
             <h3 className="mb-5 text-lg font-semibold text-on-surface">請假提醒</h3>
             <div className="space-y-4 text-sm leading-7 text-on-surface">
-              <p>請依假別規定提早送出申請，系統會依選擇的假別帶出建議提前申請時數。</p>
+                <p>請依加班及請假規範，於建議時限內完成申請。</p>
               <p className="text-sm leading-7 text-error">※ 未依規定提出，可能導致申請失敗，請特別注意。</p>
             </div>
             <div className="mt-6 flex justify-end">

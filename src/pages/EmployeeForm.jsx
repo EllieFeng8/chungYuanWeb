@@ -164,24 +164,11 @@ export default function EmployeeForm({ mode = "add" }) {
             }));
     }, [departmentDirectory]);
 
-    const managerOptions = useMemo(() => {
-        return employeeDirectory
-            .filter((item) => {
-                if (!['manager', 'admin'].includes(item.role) || !item.employeeNo || !item.employeeName) {
-                    return false;
-                }
-
-                if (!employeeForm.departmentNo) {
-                    return true;
-                }
-
-                return item.role === 'admin' || item.departmentNo === employeeForm.departmentNo;
-            })
-            .map((item) => ({
-                value: item.employeeNo,
-                label: item.employeeName,
-            }));
-    }, [employeeDirectory, employeeForm.departmentNo]);
+    const selectedDepartment = useMemo(() => {
+        return departmentDirectory.find(
+            (item) => String(item?.departmentNo || '').trim() === String(employeeForm.departmentNo || '').trim()
+        ) || null;
+    }, [departmentDirectory, employeeForm.departmentNo]);
 
     const managerDisplayName = useMemo(() => {
         const matchedManager = employeeDirectory.find(
@@ -195,6 +182,20 @@ export default function EmployeeForm({ mode = "add" }) {
             || '-'
         );
     }, [employeeDetail?.managerEmpName, employeeDirectory, employeeForm.managerEmpNo]);
+
+    useEffect(() => {
+        const nextManagerEmpNo = String(selectedDepartment?.managerEmpNo || '').trim();
+        const currentManagerEmpNo = String(employeeForm.managerEmpNo || '').trim();
+
+        if (currentManagerEmpNo === nextManagerEmpNo) {
+            return;
+        }
+
+        setEmployeeForm((current) => ({
+            ...current,
+            managerEmpNo: nextManagerEmpNo,
+        }));
+    }, [employeeForm.managerEmpNo, selectedDepartment?.managerEmpNo]);
 
     const agentOptions = useMemo(() => {
         return employeeDirectory
@@ -1059,21 +1060,13 @@ export default function EmployeeForm({ mode = "add" }) {
                                             部門主管
                                         </label>
                                         <div className="relative">
-                                            <select
+                                            <input
                                                 id="manager"
-                                                value={employeeForm.managerEmpNo}
-                                                onChange={(event) => handleEmployeeFormChange('managerEmpNo', event.target.value)}
-                                                className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface text-sm"
-                                            >
-                                                <option value="">請選擇部門主管</option>
-                                                {employeeForm.managerEmpNo && !managerOptions.some((option) => option.value === employeeForm.managerEmpNo) ? (
-                                                    <option value={employeeForm.managerEmpNo}>{managerDisplayName}</option>
-                                                ) : null}
-                                                {managerOptions.map((option) => (
-                                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" size={18} />
+                                                readOnly
+                                                value={managerDisplayName}
+                                                placeholder="選擇部門後自動帶入"
+                                                className="w-full h-11 px-4 bg-surface-container-low border border-outline rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
+                                            />
                                         </div>
                                     </div>
 

@@ -17,8 +17,10 @@ import { motion } from 'motion/react';
 import { getAccountDetail } from '../lib/cfctApi';
 
 const ROLE_STORAGE_KEY = 'userRole';
+const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
 const DISPLAY_NAME_STORAGE_KEY = 'loginDisplayName';
 const ACCOUNT_SEQNO_STORAGE_KEY = 'loginAccountSeqNo';
+const LINE_USER_ID_STORAGE_KEY = 'loginLineUserId';
 
 const NAV_ITEMS = {
   employee: [
@@ -104,6 +106,24 @@ export default function Layout({ children, title = "", showBack = false }) {
     setIsMobileSidebarOpen(false);
   };
 
+  const handleLogout = () => {
+    [
+      ROLE_STORAGE_KEY,
+      ACCOUNT_NAME_STORAGE_KEY,
+      DISPLAY_NAME_STORAGE_KEY,
+      ACCOUNT_SEQNO_STORAGE_KEY,
+      LINE_USER_ID_STORAGE_KEY,
+    ].forEach((key) => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
+
+    setDisplayName('未登入');
+    setRole('employee');
+    setIsMobileSidebarOpen(false);
+    navigate('/', { replace: true });
+  };
+
   const navItems = NAV_ITEMS[role] || NAV_ITEMS.employee;
 
   return (
@@ -185,13 +205,22 @@ export default function Layout({ children, title = "", showBack = false }) {
             <h1 className="app-header-title text-xl font-semibold text-primary">{title}</h1>
           </div>
 
-          <div className="app-header-user flex items-right gap-4">
+          <div className="app-header-user flex items-center gap-3">
 
             {/*<button className="relative p-2 text-secondary hover:bg-surface-container-high rounded-full transition-colors">*/}
             {/*  <Bell size={20} />*/}
             {/*  <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>*/}
             {/*</button>*/}
             <p className="text-m">{displayName}</p>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-secondary transition-colors hover:bg-surface-container-high"
+              aria-label="登出"
+            >
+              <LogOut size={16} />
+              <span>登出</span>
+            </button>
 
           </div>
         </header>

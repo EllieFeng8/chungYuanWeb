@@ -13,6 +13,7 @@ function mapAgentAssignment(item) {
     applicantName: item?.applicantName || item?.applicantEmpName || item?.applicantEmpNo || '-',
     applicantEmpNo: item?.applicantEmpNo || '',
     agentEmpNo: item?.agentEmpNo || '',
+    agent2EmpNo: item?.agent2EmpNo || '',
     typeName: getApplicationTypeName(item),
     rowVer: item?.rowVer,
     raw: item,
@@ -69,6 +70,7 @@ export default function Dashboard() {
           .filter((item) => {
             const matchesCurrentEmployee = (
               normalizeEmployeeNo(item?.agentEmpNo) === normalizeEmployeeNo(employee.employeeNo)
+              || normalizeEmployeeNo(item?.agent2EmpNo) === normalizeEmployeeNo(employee.employeeNo)
             );
             const confirmState = String(item?.agentConfirmState || 'pending').trim().toLowerCase();
             return matchesCurrentEmployee && confirmState === 'pending';

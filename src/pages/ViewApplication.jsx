@@ -42,6 +42,44 @@ function buildStepLabel(steps) {
   return `承辦人: ${currentStep.approverName || currentStep.approverEmpNo || '-'}`;
 }
 
+function getAgentStatusLabel(status, hasAgent) {
+  switch (status) {
+    case 'confirmed':
+    case 'approved':
+    case '已確認':
+      return '已確認';
+    case 'pending':
+    case '待確認':
+      return '待確認';
+    case 'rejected':
+    case '已拒絕':
+      return '已拒絕';
+    case 'unassigned':
+    case 'none':
+      return hasAgent ? '未回覆' : '未指派';
+    case '未指派':
+      return '未指派';
+    case '未回覆':
+      return '未回覆';
+    default:
+      return status || (hasAgent ? '-' : '未指派');
+  }
+}
+
+function calculateDurationHours(startTime, endTime) {
+  if (!startTime || !endTime) {
+    return null;
+  }
+
+  const startAt = new Date(startTime);
+  const endAt = new Date(endTime);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+    return null;
+  }
+
+  return Number(((endAt.getTime() - startAt.getTime()) / (1000 * 60 * 60)).toFixed(2));
+}
+
 export default function ViewApplication() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -236,9 +274,67 @@ export default function ViewApplication() {
   const period = getApplicationPeriod(application);
   const statusLabel = getApplicationStatusLabel(application.status);
   const workflowLabel = buildStepLabel(application.steps);
-  const agentName = employees.find((employee) => employee.employeeNo === application.agentEmpNo)?.employeeName
+  const applicationTypeName = getApplicationTypeName(application);
+  const isOvertimeApplication = String(applicationTypeName || '').includes('加班');
+  const isGeneralOvertime = String(applicationTypeName || '').includes('一般加班');
+  const isTravelAllowanceOvertime = String(applicationTypeName || '').includes('車趟津貼');
+  const overtimeHours = useMemo(() => {
+    if (!isGeneralOvertime) {
+      return null;
+    }
+
+    const rawHours = application?.hours ?? application?.Hours;
+    if (rawHours !== undefined && rawHours !== null && rawHours !== '') {
+      const parsedHours = Number(rawHours);
+      return Number.isNaN(parsedHours) ? null : parsedHours;
+    }
+
+    return calculateDurationHours(application?.startTime, application?.endTime);
+  }, [application?.Hours, application?.endTime, application?.hours, application?.startTime, isGeneralOvertime]);
+  const travelAllowanceAmount = useMemo(() => {
+    if (!isTravelAllowanceOvertime) {
+      return null;
+    }
+
+    const rawAmount = application?.hours ?? application?.Hours;
+    if (rawAmount === undefined || rawAmount === null || rawAmount === '') {
+      return null;
+    }
+
+    const parsedAmount = Number(rawAmount);
+    return Number.isNaN(parsedAmount) ? null : parsedAmount;
+  }, [application?.Hours, application?.hours, isTravelAllowanceOvertime]);
+  const agentName = employees.find((employee) => String(employee.employeeNo || '').trim() === String(application.agentEmpNo || '').trim())?.employeeName
+    || application.agentName
+    || application.agentEmpName
     || application.agentEmpNo
+    || application.proxyName
     || '未指定';
+  const agent2Name = employees.find((employee) => String(employee.employeeNo || '').trim() === String(application.agent2EmpNo || '').trim())?.employeeName
+    || application.agent2Name
+    || application.agent2EmpName
+    || application.agent2EmpNo
+    || '未指定';
+  const agent1StatusLabel = useMemo(
+    () => getAgentStatusLabel(application?.agentConfirmState || application?.agentStatus, agentName !== '未指定'),
+    [application?.agentConfirmState, application?.agentStatus, agentName]
+  );
+  const agent2StatusLabel = useMemo(
+    () => getAgentStatusLabel(
+      application?.agent2ConfirmState
+      || application?.agent2Status
+      || application?.agentConfirmState
+      || application?.agentStatus,
+      agent2Name !== '未指定'
+    ),
+    [
+      application?.agent2ConfirmState,
+      application?.agent2Status,
+      application?.agentConfirmState,
+      application?.agentStatus,
+      agent2Name,
+    ]
+  );
   const applicantEmpNo = application.applicantEmpNo || location.state?.employeeNo || '';
   const canCancel = application.status === 'pending';
   const canSupplement = application.status === 'need_supplement';
@@ -478,7 +574,7 @@ export default function ViewApplication() {
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">類型</label>
                 <div className="h-11 border-b border-outline-variant flex items-center px-1">
-                  <span className="text-sm font-semibold">{getApplicationTypeName(application)}</span>
+                  <span className="text-sm font-semibold">{applicationTypeName}</span>
                 </div>
               </div>
 
@@ -496,12 +592,41 @@ export default function ViewApplication() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">代理人</label>
-                <div className="h-11 border-b border-outline-variant flex items-center px-1">
-                  <span className="text-sm font-semibold">{agentName}</span>
+              {!isOvertimeApplication ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">代理人 1</label>
+                  <div className="h-11 border-b border-outline-variant flex items-center px-1">
+                    <span className="text-sm font-semibold">{agentName}</span>
+                  </div>
                 </div>
-              </div>
+              ) : null}
+
+              {!isOvertimeApplication ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">代理人 2</label>
+                  <div className="h-11 border-b border-outline-variant flex items-center px-1">
+                    <span className="text-sm font-semibold">{agent2Name}</span>
+                  </div>
+                </div>
+              ) : null}
+
+              {!isOvertimeApplication ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">代理人 1 狀態</label>
+                  <div className="h-11 border-b border-outline-variant flex items-center px-1">
+                    <span className="text-sm font-semibold">{agent1StatusLabel}</span>
+                  </div>
+                </div>
+              ) : null}
+
+              {!isOvertimeApplication ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">代理人 2 狀態</label>
+                  <div className="h-11 border-b border-outline-variant flex items-center px-1">
+                    <span className="text-sm font-semibold">{agent2StatusLabel}</span>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請時間</label>
@@ -523,6 +648,24 @@ export default function ViewApplication() {
                   <span className="text-sm font-semibold">{period.endDate} {period.endTime}</span>
                 </div>
               </div>
+
+              {isGeneralOvertime ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">加班時數</label>
+                  <div className="h-11 border-b border-outline-variant flex items-center px-1">
+                    <span className="text-sm font-semibold">{overtimeHours ?? '-'} {overtimeHours !== null ? '小時' : ''}</span>
+                  </div>
+                </div>
+              ) : null}
+
+              {isTravelAllowanceOvertime ? (
+                <div className="space-y-2">
+                  <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">金額</label>
+                  <div className="h-11 border-b border-outline-variant flex items-center px-1">
+                    <span className="text-sm font-semibold">{travelAllowanceAmount ?? '-'} {travelAllowanceAmount !== null ? '元' : ''}</span>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="md:col-span-2 space-y-2">
                 <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請原因</label>

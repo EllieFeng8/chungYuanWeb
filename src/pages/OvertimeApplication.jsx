@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Lock, ChevronDown, Plus } from '../components/icons';
 import Layout from '../components/Layout';
+import TimeSelect24 from '../components/TimeSelect24';
 import {
   createApplication,
   getLeaveTypeList,
@@ -26,6 +27,10 @@ function getTypeName(option) {
 
 function getAdvanceHours(option) {
   return option?.advanceHours ?? option?.AdvanceHours ?? null;
+}
+
+function isTravelAllowanceType(option) {
+  return getTypeName(option).includes('車趟津貼');
 }
 
 function toDateTimeString(date, time) {
@@ -85,6 +90,7 @@ export default function OvertimeApplication() {
   const [endTime, setEndTime] = useState('');
   const [reason, setReason] = useState('');
   const [remark, setRemark] = useState('');
+  const [amount, setAmount] = useState('');
   const [isReminderOpen, setIsReminderOpen] = useState(true);
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +99,10 @@ export default function OvertimeApplication() {
   const selectedOvertimeType = useMemo(
     () => overtimeTypes.find((item) => getTypeCode(item) === selectedOvertimeTypeCode) ?? null,
     [overtimeTypes, selectedOvertimeTypeCode]
+  );
+  const isTravelAllowance = useMemo(
+    () => isTravelAllowanceType(selectedOvertimeType),
+    [selectedOvertimeType]
   );
 
   const currentDepartmentName = useMemo(
@@ -111,6 +121,21 @@ export default function OvertimeApplication() {
 
     return matchedManager?.employeeName || currentEmployee?.managerEmpNo || '-';
   }, [currentEmployee?.managerEmpName, currentEmployee?.managerEmpNo, employees]);
+
+  const totalOvertimeHours = useMemo(() => {
+    if (!startDate || !startTime || !endTime) {
+      return '';
+    }
+
+    const startAt = new Date(toDateTimeString(startDate, startTime));
+    const endAt = new Date(toDateTimeString(startDate, endTime));
+
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+      return '';
+    }
+
+    return calculateHours(startAt, endAt);
+  }, [startDate, startTime, endTime]);
 
   useEffect(() => {
     let isMounted = true;
@@ -245,6 +270,18 @@ export default function OvertimeApplication() {
       return;
     }
 
+    if (isTravelAllowance) {
+      const parsedAmount = Number(amount);
+      if (!amount.trim() || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+        void Swal.fire({
+          icon: 'warning',
+          title: '請填寫金額',
+          text: '車趟津貼請輸入大於 0 的金額。',
+        });
+        return;
+      }
+    }
+
     const startAt = new Date(toDateTimeString(startDate, startTime));
     const endAt = new Date(toDateTimeString(startDate, endTime));
 
@@ -265,7 +302,7 @@ export default function OvertimeApplication() {
         leaveTypeCode: selectedOvertimeTypeCode,
         startTime: toDateTimeString(startDate, startTime),
         endTime: toDateTimeString(startDate, endTime),
-        hours: calculateHours(startAt, endAt),
+        hours: isTravelAllowance ? Number(amount) : calculateHours(startAt, endAt),
         reason: reason.trim() || null,
         remark: remark.trim() || null,
       };
@@ -427,13 +464,11 @@ export default function OvertimeApplication() {
                       <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
                         開始時間 <span className="text-error">*</span>
                       </label>
-                      <input
-                        type="time"
+                      <TimeSelect24
                         value={startTime}
-                        onChange={(event) => setStartTime(event.target.value)}
-                        required
+                        onChange={setStartTime}
                         disabled={saving}
-                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                        required
                       />
                     </div>
 
@@ -441,16 +476,45 @@ export default function OvertimeApplication() {
                       <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
                         結束時間 <span className="text-error">*</span>
                       </label>
-                      <input
-                        type="time"
+                      <TimeSelect24
                         value={endTime}
-                        onChange={(event) => setEndTime(event.target.value)}
-                        required
+                        onChange={setEndTime}
                         disabled={saving}
-                        className="w-full h-11 px-4 appearance-none bg-white border border-outline rounded-lg focus:ring-2 focus:ring-[#dd771a]/20 focus:border-[#dd771a] outline-none text-on-surface text-sm disabled:bg-surface-container-low disabled:text-on-surface-variant"
+                        required
                       />
                     </div>
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                    {isTravelAllowance ? '金額' : '總加班時數'}
+                  </label>
+                  {isTravelAllowance ? (
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={amount}
+                        onChange={(event) => setAmount(event.target.value)}
+                        disabled={saving}
+                        placeholder="請輸入金額"
+                        className="w-full h-11 rounded-lg border border-outline bg-white px-4 pr-12 text-sm text-on-surface outline-none focus:border-[#dd771a] focus:ring-2 focus:ring-[#dd771a]/20 disabled:bg-surface-container-low"
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant">元</span>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <input
+                        readOnly
+                        value={totalOvertimeHours === '' ? '' : `${totalOvertimeHours} 小時`}
+                        placeholder="請先選擇開始與結束時間"
+                        className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
+                      />
+                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="md:col-span-2 space-y-2">
@@ -556,7 +620,7 @@ export default function OvertimeApplication() {
             onClick={(event) => event.stopPropagation()}
           >
             <h3 className="mb-5 text-lg font-semibold text-on-surface">加班提醒</h3>
-            <p className="text-sm leading-7 text-on-surface">請依加班類型規定提早送出申請，系統會依類型提供建議提前申請時數。</p>
+            <p className="text-sm leading-7 text-on-surface">請依加班及請假規範，於建議時限內完成申請。</p>
             <p className="text-sm leading-7 text-error">※ 未依規定提出，可能導致申請失敗，請特別注意。</p>
             <div className="mt-6 flex justify-end">
               <button

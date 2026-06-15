@@ -116,5 +116,5 @@ export default function ApprovalListByLine() {
     );
   }
 
-  return <ApprovalList />;
+  return <ApprovalList forceShowAttachmentColumn />;
 }

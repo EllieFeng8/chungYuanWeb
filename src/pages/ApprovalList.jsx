@@ -5,12 +5,21 @@ import {
     ChevronLeft,
     ChevronRight,
 } from 'lucide-react';
+import JSZip from 'jszip';
 import { motion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import ApprovalRequestList from '../components/ApprovalRequestList';
 import Layout from '../components/Layout';
-import { getDepartmentList, getDeptApprovalList, getHrApplicationList } from '../lib/cfctApi';
+import {
+    getAttachmentDownloadUrl,
+    getAttachmentList,
+    getDepartmentList,
+    getDeptApprovalList,
+    getHrApplicationExportUrl,
+    getHrApplicationList,
+} from '../lib/cfctApi';
 import {
     formatDateTime,
     getCurrentEmployeeContext,
@@ -105,7 +114,8 @@ function getDurationText(application) {
 }
 
 function isOvertimeApplication(typeName) {
-    return String(typeName || '').includes('加班');
+    const normalizedTypeName = String(typeName || '').trim();
+    return normalizedTypeName.includes('加班') || normalizedTypeName.includes('車趟津貼');
 }
 
 function getApprovalRequestDate(item) {
@@ -124,8 +134,14 @@ function getApprovalRequestDate(item) {
 
 function normalizeApprovalItem(item) {
     const statusLabel = getApplicationStatusLabel(item?.status);
-    const agentName = item?.agentName || item?.agentEmpName || item?.agentEmpNo || item?.proxyName || '-';
-    const hasAgent = agentName !== '-';
+    const agentNames = [
+        item?.agentName || item?.agentEmpName || item?.agentEmpNo || item?.proxyName || '',
+        item?.agent2Name || item?.agent2EmpName || item?.agent2EmpNo || '',
+    ]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean);
+    const hasAgent = agentNames.length > 0;
+    const attachmentCount = Number(item?.attachmentCount ?? item?.AttachmentCount ?? 0);
     return {
         seqNo: item?.seqNo || item?.applicationSeqNo || item?.id || '',
         department: item?.departmentName || item?.deptName || item?.department || '-',
@@ -134,15 +150,59 @@ function normalizeApprovalItem(item) {
         type: getApplicationTypeName(item),
         typeColor: getTypeColor(item),
         duration: getDurationText(item),
-        agentName,
+        agentNames,
+        agentName: agentNames.length ? agentNames.join(' / ') : '-',
         agentStatus: getAgentStatusLabel(item?.agentConfirmState || item?.agentStatus, hasAgent),
+        attachmentStatus: attachmentCount >= 1 ? '有' : '無',
         status: statusLabel,
         detail: item?.reason || item?.remark || item?.comment || item?.description || '-',
         raw: item,
     };
 }
 
-export default function ApprovalList() {
+function getAttachmentCount(item) {
+    return Number(item?.raw?.attachmentCount ?? item?.raw?.AttachmentCount ?? 0);
+}
+
+function sanitizeFileName(value, fallback = 'file') {
+    const normalized = String(value || '').trim();
+    if (!normalized) {
+        return fallback;
+    }
+
+    return normalized.replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_');
+}
+
+function parseContentDispositionFileName(contentDisposition) {
+    const utf8Match = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) {
+        try {
+            return decodeURIComponent(utf8Match[1]);
+        } catch {
+            return utf8Match[1];
+        }
+    }
+
+    const plainMatch = contentDisposition?.match(/filename="?([^"]+)"?/i);
+    return plainMatch?.[1] || '';
+}
+
+async function fetchBlobWithFileName(url, fallbackFileName) {
+    const response = await fetch(url);
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `檔案下載失敗 (${response.status})`);
+    }
+
+    const blob = await response.blob();
+    const headerFileName = parseContentDispositionFileName(response.headers.get('content-disposition'));
+    return {
+        blob,
+        fileName: sanitizeFileName(headerFileName || fallbackFileName, fallbackFileName),
+    };
+}
+
+export default function ApprovalList({ forceShowAttachmentColumn = false }) {
     const navigate = useNavigate();
     const [departmentFilter, setDepartmentFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState(STATUS_ALL);
@@ -198,7 +258,18 @@ export default function ApprovalList() {
                 setApprovalList(records.map(normalizeApprovalItem));
                 setDepartmentOptions(
                     departments
-                        .map((department) => department?.departmentName || department?.deptName || department?.name || '')
+                        .map((department) => {
+                            const name = department?.departmentName || department?.deptName || department?.name || '';
+                            const deptNo = department?.departmentNo || department?.deptNo || department?.id || '';
+                            if (!name) {
+                                return null;
+                            }
+
+                            return {
+                                name,
+                                deptNo: String(deptNo || '').trim(),
+                            };
+                        })
                         .filter(Boolean)
                 );
             } catch (error) {
@@ -265,9 +336,13 @@ export default function ApprovalList() {
         })
     ), [approvalList, dateFrom, dateTo, departmentFilter, requestTypeFilter, statusFilter]);
 
+    const selectedDepartmentOption = useMemo(() => (
+        departmentOptions.find((department) => department.name === departmentFilter) || null
+    ), [departmentFilter, departmentOptions]);
+
     const departmentSelectWidth = useMemo(() => {
         const longestDepartmentLength = departmentOptions.reduce(
-            (maxLength, department) => Math.max(maxLength, String(department || '').length),
+            (maxLength, department) => Math.max(maxLength, String(department?.name || '').length),
             '所有部門'.length
         );
 
@@ -310,6 +385,7 @@ export default function ApprovalList() {
     const startIndex = (safeCurrentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const paginatedApprovalList = filteredApprovalList.slice(startIndex, endIndex);
+    const showAttachmentColumn = isAdmin || forceShowAttachmentColumn;
     const visiblePageNumbers = useMemo(() => {
         const pages = [];
         for (let page = 1; page <= totalPages; page += 1) {
@@ -318,31 +394,87 @@ export default function ApprovalList() {
         return pages;
     }, [totalPages]);
 
-    const handleDownload = () => {
-        const headers = ['部門', '員工資訊', '申請日期時間', '申請類型', '日期時間', '代理人名稱', '代理人狀態', '狀態', '詳情'];
-        const rows = filteredApprovalList.map((item) => [
-            item.department,
-            item.applicant,
-            item.requestTime,
-            item.type,
-            item.duration,
-            item.agentName,
-            item.agentStatus,
-            item.status,
-            item.detail,
-        ]);
+    const handleDownload = async () => {
+        const category = requestTypeFilter === 'all' ? '' : requestTypeFilter;
+        const exportUrl = getHrApplicationExportUrl({
+            status: STATUS_QUERY_MAP[statusFilter],
+            deptNo: selectedDepartmentOption?.deptNo || '',
+            category,
+            from: dateFrom,
+            to: dateTo,
+        });
 
-        const csvContent = [headers, ...rows]
-            .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-            .join('\n');
+        try {
+            const zip = new JSZip();
+            const exportFile = await fetchBlobWithFileName(exportUrl, 'applications.csv');
+            zip.file(exportFile.fileName, exportFile.blob);
 
-        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'approval-list.csv';
-        link.click();
-        window.URL.revokeObjectURL(url);
+            const itemsWithAttachments = filteredApprovalList.filter((item) => getAttachmentCount(item) >= 1);
+            const attachmentRoot = zip.folder('attachments');
+            const failedAttachments = [];
+
+            for (const item of itemsWithAttachments) {
+                const response = await getAttachmentList(item.seqNo);
+                if (!response?.success) {
+                    throw new Error(response?.error || `附件列表讀取失敗：${item.applicant}`);
+                }
+
+                const attachments = Array.isArray(response.data) ? response.data : [];
+                const itemFolder = attachmentRoot?.folder(
+                    sanitizeFileName(`${item.seqNo}_${item.applicant}_${item.type}`, String(item.seqNo))
+                );
+
+                for (const attachment of attachments) {
+                    const attachmentSeqNo = attachment?.seqNo || attachment?.attachmentSeqNo || attachment?.id;
+                    if (!attachmentSeqNo) {
+                        continue;
+                    }
+
+                    const attachmentName = sanitizeFileName(
+                        attachment?.fileName || attachment?.FileName || `attachment-${attachmentSeqNo}`,
+                        `attachment-${attachmentSeqNo}`
+                    );
+                    try {
+                        const attachmentFile = await fetchBlobWithFileName(
+                            getAttachmentDownloadUrl(attachmentSeqNo),
+                            attachmentName
+                        );
+                        itemFolder?.file(attachmentFile.fileName, attachmentFile.blob);
+                    } catch (error) {
+                        failedAttachments.push(`${item.applicant} / ${attachmentName}`);
+                        console.error('[ApprovalList] attachment download failed', {
+                            appSeqNo: item.seqNo,
+                            attachmentSeqNo,
+                            attachmentName,
+                            error: error instanceof Error ? error.message : error,
+                        });
+                    }
+                }
+            }
+
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const zipUrl = window.URL.createObjectURL(zipBlob);
+            const link = document.createElement('a');
+            link.href = zipUrl;
+            link.download = `approval-export-${new Date().toISOString().slice(0, 10)}.zip`;
+            link.click();
+            window.URL.revokeObjectURL(zipUrl);
+
+            if (failedAttachments.length) {
+                void Swal.fire({
+                    icon: 'warning',
+                    title: '部分附件未下載',
+                    text: `已略過 ${failedAttachments.length} 個失敗附件`,
+                    footer: failedAttachments.slice(0, 5).join('<br>'),
+                });
+            }
+        } catch (error) {
+            void Swal.fire({
+                icon: 'error',
+                title: '匯出失敗',
+                text: error instanceof Error ? error.message : '壓縮檔產生失敗',
+            });
+        }
     };
 
     const handleRowClick = (item) => {
@@ -350,6 +482,8 @@ export default function ApprovalList() {
             state: { seqNo: item.seqNo, application: item.raw },
         });
     };
+
+    const getStatusClassName = (item) => getApplicationStatusStyles(STATUS_QUERY_MAP[item.status] || item.raw?.status);
 
     return (
         <Layout title="">
@@ -475,7 +609,7 @@ export default function ApprovalList() {
                                 >
                                     <option value="all">所有部門</option>
                                     {departmentOptions.map((department) => (
-                                        <option key={department} value={department}>{department}</option>
+                                        <option key={`${department.deptNo}-${department.name}`} value={department.name}>{department.name}</option>
                                     ))}
                                 </select>
                             </div>
@@ -517,154 +651,14 @@ export default function ApprovalList() {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto overflow-y-hidden xl:hidden">
-                    <table className="min-w-[980px] w-full table-fixed text-left border-collapse">
-                        <thead>
-                        <tr className="bg-surface-container-low border-b border-outline-variant">
-                            <th className="sticky left-0 z-20 w-[110px] bg-surface-container-low px-4 py-4 text-xs font-bold text-secondary tracking-wider">部門</th>
-                            <th className="sticky left-[110px] z-20 w-[140px] bg-surface-container-low px-4 py-4 text-xs font-bold text-secondary tracking-wider">員工資訊</th>
-                            <th className="w-[12%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請日期時間</th>
-                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請類型</th>
-                            <th className="w-[16%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">日期時間</th>
-                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人名稱</th>
-                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人狀態</th>
-                            <th className="w-[9%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">狀態</th>
-                            <th className="w-[13%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">詳情</th>
-                        </tr>
-                        </thead>
-                        <tbody className="divide-y divide-outline-variant">
-                        {loading ? (
-                            <tr>
-                                <td colSpan={9} className="px-4 py-10 text-center text-sm text-secondary">資料讀取中...</td>
-                            </tr>
-                        ) : paginatedApprovalList.length ? (
-                            paginatedApprovalList.map((item, idx) => (
-                                <tr
-                                    key={item.seqNo || idx}
-                                    className="hover:bg-surface-container-low transition-colors group cursor-pointer"
-                                    onClick={() => handleRowClick(item)}
-                                >
-                                    <td className="sticky left-0 z-10 bg-surface-container-lowest px-4 py-4 text-sm break-words group-hover:bg-surface-container-low">{item.department}</td>
-                                    <td className="sticky left-[110px] z-10 bg-surface-container-lowest px-4 py-4 group-hover:bg-surface-container-low">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-sm font-medium">{item.applicant}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-4 text-xs text-on-surface-variant leading-relaxed">
-                                        {String(item.requestTime || '-').split(' ').map((part, i) => (
-                                            <div key={i}>{part}</div>
-                                        ))}
-                                    </td>
-                                    <td className="px-4 py-4">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`w-2 h-2 rounded-full ${item.typeColor}`}></span>
-                                            <span className="text-sm">{item.type}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-4 text-xs text-on-surface-variant leading-relaxed">
-                                        {String(item.duration || '-').split(' - ').map((part, i) => (
-                                            <div key={i}>{part}</div>
-                                        ))}
-                                    </td>
-                                    <td className="px-4 py-4 text-sm break-words">{item.agentName}</td>
-                                    <td className="px-4 py-4">
-                                        <span className={`inline-flex whitespace-nowrap items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${getAgentStatusStyles(item.agentStatus)}`}>
-                                            {item.agentStatus}
-                                        </span>
-                                    </td>
-
-                                    <td className="px-4 py-4">
-                    <span className={`inline-flex whitespace-nowrap items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${getApplicationStatusStyles(STATUS_QUERY_MAP[item.status] || item.raw?.status)}`}>
-                      {item.status}
-                    </span>
-                                    </td>
-                                    <td className="px-4 py-4">
-                                        <p className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-secondary" title={item.detail}>
-                                            {item.detail}
-                                        </p>
-                                    </td>
-                                </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan={9} className="px-4 py-10 text-center text-sm text-secondary">查無待審批資料</td>
-                            </tr>
-                        )}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div className="hidden xl:block">
-                    <table className="w-full table-fixed text-left border-collapse">
-                        <thead>
-                        <tr className="bg-surface-container-low border-b border-outline-variant">
-                            <th className="w-[11%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">部門</th>
-                            <th className="w-[12%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">員工資訊</th>
-                            <th className="w-[13%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請日期時間</th>
-                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請類型</th>
-                            <th className="w-[15%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">日期時間</th>
-                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人名稱</th>
-                            <th className="w-[11%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人狀態</th>
-                            <th className="w-[8%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">狀態</th>
-                            <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">詳情</th>
-                        </tr>
-                        </thead>
-                        <tbody className="divide-y divide-outline-variant">
-                        {loading ? (
-                            <tr>
-                                <td colSpan={9} className="px-4 py-10 text-center text-sm text-secondary">資料讀取中...</td>
-                            </tr>
-                        ) : paginatedApprovalList.length ? (
-                            paginatedApprovalList.map((item, idx) => (
-                                <tr
-                                    key={item.seqNo || idx}
-                                    className="hover:bg-surface-container-low transition-colors cursor-pointer"
-                                    onClick={() => handleRowClick(item)}
-                                >
-                                    <td className="px-4 py-4 text-sm break-words">{item.department}</td>
-                                    <td className="px-4 py-4 text-sm font-medium break-words">{item.applicant}</td>
-                                    <td className="px-4 py-4 text-xs text-on-surface-variant leading-relaxed">
-                                        {String(item.requestTime || '-').split(' ').map((part, i) => (
-                                            <div key={i}>{part}</div>
-                                        ))}
-                                    </td>
-                                    <td className="px-4 py-4">
-                                        <div className="flex items-center gap-2">
-                                            <span className={`w-2 h-2 rounded-full ${item.typeColor}`}></span>
-                                            <span className="text-sm break-words">{item.type}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-4 text-xs text-on-surface-variant leading-relaxed">
-                                        {String(item.duration || '-').split(' - ').map((part, i) => (
-                                            <div key={i}>{part}</div>
-                                        ))}
-                                    </td>
-                                    <td className="px-4 py-4 text-sm break-words">{item.agentName}</td>
-                                    <td className="px-4 py-4">
-                                        <span className={`inline-flex whitespace-nowrap items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${getAgentStatusStyles(item.agentStatus)}`}>
-                                            {item.agentStatus}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-4">
-                                        <span className={`inline-flex whitespace-nowrap items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${getApplicationStatusStyles(STATUS_QUERY_MAP[item.status] || item.raw?.status)}`}>
-                                            {item.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-4">
-                                        <p className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-secondary" title={item.detail}>
-                                            {item.detail}
-                                        </p>
-                                    </td>
-                                </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan={9} className="px-4 py-10 text-center text-sm text-secondary">查無待審批資料</td>
-                            </tr>
-                        )}
-                        </tbody>
-                    </table>
-                </div>
+                <ApprovalRequestList
+                    items={paginatedApprovalList}
+                    loading={loading}
+                    showAttachmentColumn={showAttachmentColumn}
+                    onRowClick={handleRowClick}
+                    getAgentStatusClassName={getAgentStatusStyles}
+                    getApplicationStatusClassName={getStatusClassName}
+                />
 
                 <div className="px-6 py-4 bg-surface-container-low border-t border-outline-variant flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">

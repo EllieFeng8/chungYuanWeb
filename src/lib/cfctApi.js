@@ -71,6 +71,18 @@ export function getHrApplicationList(filters = {}) {
   return request(`/app-api/hr/applications?${searchParams.toString()}`);
 }
 
+export function getHrApplicationExportUrl(filters = {}) {
+  const searchParams = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      searchParams.set(key, String(value).trim());
+    }
+  });
+
+  const query = searchParams.toString();
+  return `${API_BASE}/app-api/hr/application/export${query ? `?${query}` : ''}`;
+}
+
 export function getMyApplications(employeeNo) {
   return request(`/app-api/applications/mine?employeeNo=${encodeURIComponent(employeeNo)}`);
 }

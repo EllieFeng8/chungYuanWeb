@@ -1,5 +1,8 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
+
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 const app = express();
 const port = Number(process.env.BFF_PORT || 8787);
@@ -288,6 +291,19 @@ app.get('/app-api/hr/applications', (req, res) => {
 
   const query = searchParams.toString();
   return forwardJson(res, `/api/hr/application/all${query ? `?${query}` : ''}`);
+});
+
+app.get('/app-api/hr/application/export', (req, res) => {
+  const searchParams = new URLSearchParams();
+  ['status', 'deptNo', 'category', 'from', 'to', 'agentEmpNo'].forEach((key) => {
+    const value = String(req.query[key] || '').trim();
+    if (value) {
+      searchParams.set(key, value);
+    }
+  });
+
+  const query = searchParams.toString();
+  return forwardBinary(res, `/api/hr/application/export${query ? `?${query}` : ''}`);
 });
 
 app.get('/app-api/agent-request/inbox', (req, res) => {
