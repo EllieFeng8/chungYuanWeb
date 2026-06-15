@@ -302,7 +302,8 @@ export default function OvertimeApplication() {
         leaveTypeCode: selectedOvertimeTypeCode,
         startTime: toDateTimeString(startDate, startTime),
         endTime: toDateTimeString(startDate, endTime),
-        hours: isTravelAllowance ? Number(amount) : calculateHours(startAt, endAt),
+        hours: isTravelAllowance ? 0 : calculateHours(startAt, endAt),
+        allowance: isTravelAllowance ? Number(amount) : null,
         reason: reason.trim() || null,
         remark: remark.trim() || null,
       };

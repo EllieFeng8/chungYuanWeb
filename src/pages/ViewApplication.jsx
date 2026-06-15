@@ -275,7 +275,8 @@ export default function ViewApplication() {
   const statusLabel = getApplicationStatusLabel(application.status);
   const workflowLabel = buildStepLabel(application.steps);
   const applicationTypeName = getApplicationTypeName(application);
-  const isOvertimeApplication = String(applicationTypeName || '').includes('加班');
+  const isOvertimeApplication = String(applicationTypeName || '').includes('加班')
+    || String(applicationTypeName || '').includes('車趟津貼');
   const isGeneralOvertime = String(applicationTypeName || '').includes('一般加班');
   const isTravelAllowanceOvertime = String(applicationTypeName || '').includes('車趟津貼');
   const overtimeHours = useMemo(() => {
@@ -296,14 +297,14 @@ export default function ViewApplication() {
       return null;
     }
 
-    const rawAmount = application?.hours ?? application?.Hours;
+    const rawAmount = application?.allowance ?? application?.Allowance ?? application?.hours ?? application?.Hours;
     if (rawAmount === undefined || rawAmount === null || rawAmount === '') {
       return null;
     }
 
     const parsedAmount = Number(rawAmount);
     return Number.isNaN(parsedAmount) ? null : parsedAmount;
-  }, [application?.Hours, application?.hours, isTravelAllowanceOvertime]);
+  }, [application?.Allowance, application?.Hours, application?.allowance, application?.hours, isTravelAllowanceOvertime]);
   const agentName = employees.find((employee) => String(employee.employeeNo || '').trim() === String(application.agentEmpNo || '').trim())?.employeeName
     || application.agentName
     || application.agentEmpName

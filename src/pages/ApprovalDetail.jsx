@@ -285,7 +285,8 @@ export default function ApprovalDetail() {
     const statusLabel = getApplicationStatusLabel(application?.status);
     const workflowLabel = buildStepLabel(application?.steps);
     const applicationTypeName = getApplicationTypeName(application);
-    const isOvertimeApplication = String(applicationTypeName || '').includes('加班');
+    const isOvertimeApplication = String(applicationTypeName || '').includes('加班')
+        || String(applicationTypeName || '').includes('車趟津貼');
     const isGeneralOvertime = String(applicationTypeName || '').includes('一般加班');
     const isTravelAllowanceOvertime = String(applicationTypeName || '').includes('車趟津貼');
     const reasonLabel = String(applicationTypeName || '').includes('加班') ? '加班原因' : '請假原因';
@@ -307,14 +308,14 @@ export default function ApprovalDetail() {
             return null;
         }
 
-        const rawAmount = application?.hours ?? application?.Hours;
+        const rawAmount = application?.allowance ?? application?.Allowance ?? application?.hours ?? application?.Hours;
         if (rawAmount === undefined || rawAmount === null || rawAmount === '') {
             return null;
         }
 
         const parsedAmount = Number(rawAmount);
         return Number.isNaN(parsedAmount) ? null : parsedAmount;
-    }, [application?.Hours, application?.hours, isTravelAllowanceOvertime]);
+    }, [application?.Allowance, application?.Hours, application?.allowance, application?.hours, isTravelAllowanceOvertime]);
     const agentName = useMemo(() => {
         const primaryEmpNo = String(application?.agentEmpNo || '').trim();
         const matchedEmployee = employees.find(
