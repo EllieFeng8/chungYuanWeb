@@ -100,6 +100,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [error, setError] = useState('');
+  const [accountsLoadError, setAccountsLoadError] = useState('');
   const [apiStatus, setApiStatus] = useState({ configured: false, reachable: false });
   const [isAutoLogin, setIsAutoLogin] = useState(false);
   const [autoLoginEnabled, setAutoLoginEnabled] = useState(() => isStoredAutoLoginEnabled());
@@ -115,6 +116,7 @@ export default function Login() {
     async function bootstrap() {
       setIsBootstrapping(true);
       setError('');
+      setAccountsLoadError('');
       const queryLineUserId = getQueryLineUserId();
       const persistedLineUserId = getStoredLineUserId();
       const lineUserId = queryLineUserId || (autoLoginEnabled ? persistedLineUserId : '');
@@ -152,12 +154,29 @@ export default function Login() {
           return;
         }
 
-        const accountsResponse = await getAccounts(true);
-        if (!accountsResponse.success) {
-          throw new Error(accountsResponse.error || '無法讀取帳號清單');
-        }
+        try {
+          const accountsResponse = await getAccounts(true);
+          if (!accountsResponse.success) {
+            throw new Error(accountsResponse.error || '無法讀取帳號清單');
+          }
 
-        setAccounts(accountsResponse.data || []);
+          if (!active) {
+            return;
+          }
+
+          setAccounts(accountsResponse.data || []);
+        } catch (accountsError) {
+          if (!active) {
+            return;
+          }
+
+          setAccounts([]);
+          setAccountsLoadError(
+            accountsError instanceof Error
+              ? `${accountsError.message} 請稍後再試，或於輸入帳號後重新登入。`
+              : '帳號清單載入失敗，請稍後再試。',
+          );
+        }
       } catch (bootstrapError) {
         if (!active) {
           return;
@@ -185,6 +204,22 @@ export default function Login() {
     localStorage.setItem(LINE_AUTO_LOGIN_ENABLED_STORAGE_KEY, String(nextValue));
   };
 
+  const resolveAccountByName = async (accountName) => {
+    const cachedAccount = accountLookup.get(accountName);
+    if (cachedAccount) {
+      return cachedAccount;
+    }
+
+    const accountsResponse = await getAccounts(true);
+    if (!accountsResponse.success) {
+      throw new Error(accountsResponse.error || '無法讀取帳號清單');
+    }
+
+    const latestAccounts = accountsResponse.data || [];
+    setAccounts(latestAccounts);
+    return latestAccounts.find((account) => account.accountName.toLowerCase() === accountName) || null;
+  };
+
   const handleLogin = async (event) => {
     event.preventDefault();
     setError('');
@@ -200,19 +235,14 @@ export default function Login() {
       return;
     }
 
-    const matchedAccount = accountLookup.get(accountName);
-    let roleConfig = null;
-    try {
-      roleConfig = validateLoginAccount(matchedAccount);
-    } catch (validationError) {
-      setError(validationError instanceof Error ? validationError.message : '登入驗證失敗');
-      return;
-    }
-
     setIsLoading(true);
     try {
+      const matchedAccount = await resolveAccountByName(accountName);
+      const roleConfig = validateLoginAccount(matchedAccount);
       persistLoginSession(matchedAccount, roleConfig, remember);
       navigate(roleConfig.path);
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : '登入驗證失敗');
     } finally {
       setIsLoading(false);
     }
@@ -273,12 +303,22 @@ export default function Login() {
             </div>
           ) : null}
 
+          {accountsLoadError ? (
+            <div className="bg-surface-container-low border border-outline-variant p-4 rounded-lg flex gap-3 mb-8">
+              <AlertCircle className="text-secondary shrink-0" size={20} />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-on-surface">帳號清單尚未載入</span>
+                <p className="text-xs text-on-surface-variant">{accountsLoadError}</p>
+              </div>
+            </div>
+          ) : null}
+
           {isAutoLogin ? (
             <div className="mb-8 rounded-lg border border-primary/20 bg-primary/5 p-4 flex gap-3">
               <div className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-primary/30 border-t-primary animate-spin" />
               <div className="flex flex-col">
                 <span className="text-sm font-bold text-primary">自動登入中</span>
-                <p className="text-xs text-on-surface-variant">正在根據 LINE 綁定帳號識別登入者並導向對應頁面。</p>
+                {/*<p className="text-xs text-on-surface-variant">正在根據 LINE 綁定帳號識別登入者並導向對應頁面。</p>*/}
               </div>
             </div>
           ) : null}
@@ -351,7 +391,7 @@ export default function Login() {
 
             <button 
               type="submit"
-              disabled={isLoading || isBootstrapping || !apiStatus.reachable || !apiStatus.configured}
+              disabled={isLoading || isBootstrapping || isAutoLogin || !apiStatus.reachable || !apiStatus.configured}
               className="flex w-full items-center justify-center gap-1.5 bg-primary text-white font-semibold h-11 px-4 rounded-lg hover:bg-primary-container transition-colors shadow-sm text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? '登入中...' : '登入'} <ArrowRight size={14} />

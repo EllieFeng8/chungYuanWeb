@@ -1134,7 +1134,7 @@ export default function EmployeeForm({ mode = "add" }) {
 
                                     <div className="space-y-2">
                                         <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest" htmlFor="line">
-                                            LINE 名稱
+                                            LINE 綁定
                                         </label>
                                         <div className="relative">
                                             <select

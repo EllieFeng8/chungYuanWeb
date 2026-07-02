@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Lock, ChevronDown, Plus } from '../components/icons';
 import Layout from '../components/Layout';
+import OvertimePolicyInfo from '../components/OvertimePolicyInfo';
 import TimeSelect24 from '../components/TimeSelect24';
 import {
   createApplication,
@@ -359,6 +360,8 @@ export default function OvertimeApplication() {
           </h2>
         </div>
 
+        <OvertimePolicyInfo />
+
         <section className="bg-white rounded-xl border border-outline-variant shadow-sm overflow-hidden mb-8">
           <div className="h-1.5 w-full" style={{ backgroundColor: ACCENT_COLOR }}></div>
           <div className="p-8">
@@ -370,6 +373,18 @@ export default function OvertimeApplication() {
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
                 <div className="space-y-2">
+                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">員工姓名</label>
+                  <div className="relative">
+                    <input
+                        className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
+                        readOnly
+                        value={currentEmployee?.employeeName || getStoredDisplayName() || (loading ? '載入中...' : '找不到員工資料')}
+                    />
+                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">員編</label>
                   <div className="relative">
                     <input
@@ -380,19 +395,6 @@ export default function OvertimeApplication() {
                     <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">員工姓名</label>
-                  <div className="relative">
-                    <input
-                      className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
-                      readOnly
-                      value={currentEmployee?.employeeName || getStoredDisplayName() || (loading ? '載入中...' : '找不到員工資料')}
-                    />
-                    <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
-                  </div>
-                </div>
-
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-on-surface-variant uppercase tracking-wider">部門</label>
                   <div className="relative">
@@ -438,11 +440,11 @@ export default function OvertimeApplication() {
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant" size={18} />
                   </div>
-                  {selectedOvertimeType ? (
-                    <p className="text-xs" style={{ color: ACCENT_COLOR }}>
-                      建議至少提前 {getAdvanceHours(selectedOvertimeType) ?? 0} 小時申請
-                    </p>
-                  ) : null}
+                  {/*{selectedOvertimeType ? (*/}
+                  {/*  <p className="text-xs" style={{ color: ACCENT_COLOR }}>*/}
+                  {/*    建議至少提前 {getAdvanceHours(selectedOvertimeType) ?? 0} 小時申請*/}
+                  {/*  </p>*/}
+                  {/*) : null}*/}
                 </div>
 
                 <div className="space-y-2">

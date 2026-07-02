@@ -8,6 +8,7 @@ const app = express();
 const port = Number(process.env.BFF_PORT || 8787);
 const upstreamBaseUrl = (process.env.CFCT_BASE_URL || 'https://cfct.sditt.com.tw').replace(/\/+$/, '');
 const apiKey = process.env.CFCT_API_KEY || '';
+const upstreamTimeoutMs = Number(process.env.CFCT_TIMEOUT_MS || 15000);
 
 app.use(express.json());
 
@@ -40,24 +41,55 @@ async function forwardJson(res, path, init = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), upstreamTimeoutMs);
+
   try {
     const response = await fetch(`${upstreamBaseUrl}${path}`, {
       ...init,
       headers,
+      signal: controller.signal,
     });
     const text = await response.text();
     const contentType = response.headers.get('content-type') || '';
 
     if (contentType.includes('application/json')) {
+      if (!response.ok) {
+        console.error('[BFF] Upstream returned error JSON', {
+          path,
+          method: init.method || 'GET',
+          status: response.status,
+          bodyPreview: text.slice(0, 300),
+        });
+      }
       res.status(response.status).type('application/json').send(text);
       return;
     }
 
+    console.error('[BFF] Upstream returned non-JSON response', {
+      path,
+      method: init.method || 'GET',
+      status: response.status,
+      contentType,
+      bodyPreview: text.slice(0, 300),
+    });
     const failure = jsonFailure(text || '上游 API 回傳非 JSON 內容', response.status);
     res.status(failure.status).json(failure.body);
   } catch (error) {
-    const failure = jsonFailure(error instanceof Error ? error.message : '無法連線至 Chinafood API');
+    const message = error instanceof Error && error.name === 'AbortError'
+      ? `上游 API 請求逾時 (${upstreamTimeoutMs}ms)`
+      : error instanceof Error
+        ? error.message
+        : '無法連線至 Chinafood API';
+    console.error('[BFF] Upstream request failed', {
+      path,
+      method: init.method || 'GET',
+      message,
+    });
+    const failure = jsonFailure(message);
     res.status(failure.status).json(failure.body);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

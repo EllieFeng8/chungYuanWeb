@@ -147,7 +147,7 @@ export default function EmployeeList() {
             <div className="flex justify-between items-start">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">員工管理</h2>
-                    <p className="text-sm text-slate-500 mt-1">管理企業員工資訊、權限及假期餘額</p>
+                    <p className="text-sm text-slate-500 mt-1">管理企業員工資訊及權限</p>
                 </div>
                 <Button
                     type="button"

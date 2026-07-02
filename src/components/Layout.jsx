@@ -137,7 +137,7 @@ export default function Layout({ children, title = "", showBack = false }) {
       <aside className={`app-sidebar fixed left-0 top-0 h-full w-[240px] border-r-2 border-outline-variant bg-surface-container-low flex flex-col z-50 ${isMobileSidebarOpen ? 'is-open' : ''}`}>
         <div className="p-6">
           <div className="flex items-center justify-between gap-3">
-            <Link to="/" className="flex items-center gap-3">
+            <div  className="flex items-center gap-3">
               <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-white">
                 <Briefcase size={24} />
               </div>
@@ -145,7 +145,7 @@ export default function Layout({ children, title = "", showBack = false }) {
                 <div className="text-lg font-bold text-primary leading-tight">中原食品</div>
                 <div className="text-[10px] tracking-widest text-on-surface-variant font-bold">CHINAFOODS</div>
               </div>
-            </Link>
+            </div>
             <button
               type="button"
               onClick={() => setIsMobileSidebarOpen(false)}

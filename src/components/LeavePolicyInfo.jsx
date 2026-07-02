@@ -1,123 +1,129 @@
 import { useState } from 'react';
-import { AlertCircle, BookOpen, Info } from './icons';
+import { BookOpen, Info } from './icons';
 
 const POLICY_SECTIONS = [
   {
     title: '一般假別',
     items: [
       {
-        name: '特別休假',
-        limit: '3-30 天',
-        pay: '全薪',
-        notice: '建議提前 3-7 天，長假 2 週前',
-        note: '依年資給假，未休完應結清或折算工資',
-      },
-      {
         name: '事假',
-        limit: '每年 14 天',
+        unit: '1 H',
+        rule: '一年內合計不超過 14 日',
+        proof: '否',
         pay: '無薪',
-        notice: '一般事由提前 1 天，緊急事後補辦',
-        note: '可用小時請假；家庭照顧事假併入計算',
+        attendance: '扣全勤',
       },
       {
-        name: '婚假',
-        limit: '8 天',
+        name: '病假',
+        unit: '1 H',
+        rule: '一年內合計不超過 30 日',
+        proof: '是',
+        pay: '半薪',
+        attendance: '扣全勤',
+      },
+      {
+        name: '生理假',
+        unit: '1 H',
+        rule: '每月可請 1 天',
+        proof: '否',
+        pay: '半薪（視同病假，每月 1 天）',
+        attendance: '不扣全勤',
+      },
+      {
+        name: '家庭照顧假',
+        unit: '1 H',
+        rule: '一年內合計不超過 7 日',
+        proof: '是',
+        pay: '無薪（併入事假計算）',
+        attendance: '扣全勤',
+      },
+      {
+        name: '公傷假',
+        unit: '4 H',
+        rule: '依勞安人員調查核定',
+        proof: '是',
         pay: '全薪',
-        notice: '建議至少 2 週前',
-        note: '需附結婚證明，自結婚日前 10 日起 3 個月內請畢',
+        attendance: '不扣全勤',
       },
       {
-        name: '喪假',
-        limit: '3-8 天',
+        name: '颱風假',
+        unit: '1 H',
+        rule: '依政府規定',
+        proof: '否',
+        pay: '全薪（依政府公告）；無薪，不扣全勤',
+        attendance: '依公告',
+      },
+      {
+        name: '出差',
+        unit: '1 H',
+        rule: '-',
+        proof: '是',
         pay: '全薪',
-        notice: '事發後第一時間通知',
-        note: '需附死亡證明或訃告',
-      },
-      {
-        name: '普通傷病假',
-        limit: '未住院 30 天；住院 2 年內累計 1 年',
-        pay: '30 天內半薪',
-        notice: '急病當日盡早通知；預約就診前 1 天',
-        note: '癌症門診或安胎可併入住院傷病假',
-      },
-      {
-        name: '公傷病假',
-        limit: '無上限',
-        pay: '依法辦理',
-        notice: '事發當下立即通報',
-        note: '職災醫療期間可請，雇主不得終止契約',
-      },
-      {
-        name: '公假',
-        limit: '視情況',
-        pay: '全薪',
-        notice: '收到公文後立即告知',
-        note: '如兵役召集、投票、陪審等',
+        attendance: '不扣全勤',
       },
     ],
   },
   {
-    title: '性別相關假別',
+    title: '法定與特殊假別',
     items: [
       {
-        name: '產假',
-        limit: '8 週',
-        pay: '依法辦理',
-        notice: '確認預產期後至少 1 個月前',
-        note: '雇主不得拒絕或視為缺勤',
-      },
-      {
         name: '產檢假',
-        limit: '7 天',
+        unit: '1 H',
+        rule: '7 天（含小時、半日、全日請假方式）',
+        proof: '是',
         pay: '全薪',
-        notice: '建議前 1-2 天告知',
-        note: '可分次請，以小時或天為單位',
+        attendance: '不扣全勤',
       },
       {
-        name: '陪產檢及陪產假',
-        limit: '7 天',
+        name: '產假',
+        unit: '連續 1 次請畢',
+        rule: '共 8 星期（56 天），包含例假日、休息日',
+        proof: '是',
+        pay: '前 8 週全薪（任職滿 6 個月）；未滿 6 個月半薪',
+        attendance: '不扣全勤',
+      },
+      {
+        name: '陪產假',
+        unit: '天',
+        rule: '共有 7 日，配偶分娩當日前後合理期間內請畢，不得分 3 次以上請',
+        proof: '是',
         pay: '全薪',
-        notice: '配合時程，至少 3 天前',
-        note: '緊急生產可事後補辦',
+        attendance: '不扣全勤',
       },
       {
-        name: '生理假',
-        limit: '每月 1 天；全年前 3 天不併病假',
-        pay: '半薪',
-        notice: '當日或前 1 天告知即可',
-        note: '無需醫師證明，不得影響全勤及考績',
+        name: '育嬰假',
+        unit: '8 H',
+        rule: '超過 30 天以上者，請於一個月以前提出',
+        proof: '是',
+        pay: '留職停薪（可申請育嬰留停津貼，約六成投保薪資）',
+        attendance: '不適用',
       },
       {
-        name: '家庭照顧假',
-        limit: '每年 7 天，併入事假',
-        pay: '依事假規則',
-        notice: '緊急狀況當日盡早通知',
-        note: '2026 起可用小時請假，雇主不得拒絕',
+        name: '婚假',
+        unit: '8 H',
+        rule: '8 天全薪婚假，請假方式同特休',
+        proof: '是',
+        pay: '全薪',
+        attendance: '不扣全勤',
       },
       {
-        name: '安胎假',
-        limit: '併入住院傷病假',
-        pay: '依病假規則',
-        notice: '醫師建議後立即告知',
-        note: '需附診斷證明',
+        name: '喪假',
+        unit: '4 H',
+        rule: '依親屬關係核定，請提前 3 天請假，百日內要請完',
+        proof: '是',
+        pay: '全薪',
+        attendance: '不扣全勤',
       },
       {
-        name: '育嬰留職停薪',
-        limit: '最長 2 年',
-        pay: '無薪，可申請津貼',
-        notice: '至少 1 個月前書面申請',
-        note: '子女滿 3 歲前可申請，分次以 2 次為限',
+        name: '彈性假（補休）',
+        unit: '1 H',
+        rule: '超過 3 天以上者，請於 10 天前提出',
+        proof: 'X',
+        pay: '全薪（折抵加班時數）',
+        attendance: '不扣全勤',
       },
     ],
   },
-];
-
-const POLICY_HIGHLIGHTS = [
-  '普通傷病假一年 10 天內，雇主不得有不利處分。',
-  '全勤獎金應按請假日數比例扣發，不得整筆扣除。',
-  '家庭照顧假可用小時申請，且不得拒絕。',
-  '婚、喪、公傷病、公假及性別相關假別，不得因請假影響全勤或考績。',
-  '緊急情形可事後補辦請假手續。',
 ];
 
 export default function LeavePolicyInfo() {
@@ -134,7 +140,7 @@ export default function LeavePolicyInfo() {
             <div className="space-y-1">
               <div className="text-sm font-bold text-primary">請假規範</div>
               <p className="text-sm text-on-surface">
-                依《勞基法假別一覽表.xlsx》整理常用假別、給薪方式與申請提醒。
+                依《請假_加班 規則-A版.xlsx》整理假別規則、證明需求與薪資說明。
               </p>
             </div>
           </div>
@@ -163,7 +169,7 @@ export default function LeavePolicyInfo() {
                 <div>
                   <h3 className="text-lg font-semibold text-on-surface">請假規範一覽</h3>
                   <p className="mt-1 text-sm text-on-surface-variant">
-                    內容整理自《勞基法假別一覽表.xlsx》，作為申請前快速參考。
+                    內容整理自《請假_加班 規則-A版.xlsx》，作為申請前快速參考。
                   </p>
                 </div>
                 <button
@@ -178,20 +184,6 @@ export default function LeavePolicyInfo() {
 
             <div className="max-h-[calc(85vh-80px)] overflow-y-auto px-6 py-6">
               <div className="space-y-6">
-                {/*<section className="rounded-xl border border-amber-200 bg-amber-50 p-4">*/}
-                {/*  <div className="flex items-start gap-3">*/}
-                {/*    <AlertCircle size={18} className="mt-0.5 text-amber-700" />*/}
-                {/*    <div>*/}
-                {/*      <div className="text-sm font-bold text-amber-900">2026 重點</div>*/}
-                {/*      <ul className="mt-2 space-y-1 text-sm leading-6 text-amber-900">*/}
-                {/*        {POLICY_HIGHLIGHTS.map((item) => (*/}
-                {/*          <li key={item}>• {item}</li>*/}
-                {/*        ))}*/}
-                {/*      </ul>*/}
-                {/*    </div>*/}
-                {/*  </div>*/}
-                {/*</section>*/}
-
                 {POLICY_SECTIONS.map((section) => (
                   <section key={section.title} className="space-y-3">
                     <h4 className="text-base font-bold text-on-surface">{section.title}</h4>
@@ -208,9 +200,10 @@ export default function LeavePolicyInfo() {
                             </span>
                           </div>
                           <div className="mt-3 space-y-2 text-sm text-on-surface-variant">
-                            <p><span className="font-semibold text-on-surface">天數上限：</span>{item.limit}</p>
-                            <p><span className="font-semibold text-on-surface">申請提醒：</span>{item.notice}</p>
-                            <p><span className="font-semibold text-on-surface">注意事項：</span>{item.note}</p>
+                            <p><span className="font-semibold text-on-surface">最小單位：</span>{item.unit}</p>
+                            <p><span className="font-semibold text-on-surface">請假規則：</span>{item.rule}</p>
+                            <p><span className="font-semibold text-on-surface">證明需求：</span>{item.proof}</p>
+                            <p><span className="font-semibold text-on-surface">全勤影響：</span>{item.attendance}</p>
                           </div>
                         </article>
                       ))}
