@@ -80,6 +80,18 @@ function calculateDurationHours(startTime, endTime) {
   return Number(((endAt.getTime() - startAt.getTime()) / (1000 * 60 * 60)).toFixed(2));
 }
 
+function resolveRecordsReturnPath(returnTo) {
+  if (returnTo === '/records') {
+    return returnTo;
+  }
+
+  if (typeof returnTo === 'string' && /^\/records-id\/[^/]+$/.test(returnTo)) {
+    return returnTo;
+  }
+
+  return '/records';
+}
+
 export default function ViewApplication() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -339,6 +351,7 @@ export default function ViewApplication() {
   const applicantEmpNo = application.applicantEmpNo || location.state?.employeeNo || '';
   const canCancel = application.status === 'pending';
   const canSupplement = application.status === 'need_supplement';
+  const recordsReturnPath = resolveRecordsReturnPath(location.state?.returnTo);
 
   function handleOpenFilePicker() {
     fileInputRef.current?.click();
@@ -448,17 +461,21 @@ export default function ViewApplication() {
         await supplementApplication(id, payload);
       }
 
-      await loadApplicationDetail();
-      if (!isCancel) {
-        setAttachments([]);
-      }
-      void Swal.fire({
+      await Swal.fire({
         icon: 'success',
         title: isCancel ? '撤銷成功' : '補件成功',
         text: isCancel ? undefined : `已上傳 ${attachments.length} 份附件。`,
         showConfirmButton: false,
         timer: 1200,
       });
+
+      if (isCancel) {
+        navigate(recordsReturnPath, { replace: true });
+        return;
+      }
+
+      await loadApplicationDetail();
+      setAttachments([]);
     } catch (error) {
       void Swal.fire({
         icon: 'error',
@@ -560,6 +577,18 @@ export default function ViewApplication() {
             ) : null}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+              <div className="space-y-2">
+                <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">單號</label>
+                <div className="relative">
+                  <input
+                    className="w-full h-11 px-4 bg-surface-container-low border border-outline-variant rounded-lg text-on-surface-variant cursor-not-allowed focus:ring-0"
+                    readOnly
+                    value={application.appNo || '-'}
+                  />
+                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant" size={16} />
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">員工姓名</label>
                 <div className="relative">

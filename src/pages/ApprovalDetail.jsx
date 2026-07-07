@@ -616,6 +616,13 @@ export default function ApprovalDetail() {
                 </div>
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                     <div className="space-y-2">
+                        <label className="text-xs font-medium text-on-surface-variant">單號</label>
+                        <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg text-secondary">
+                            <Lock size={16} />
+                            <span className="text-sm">{application.appNo || '-'}</span>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">員工姓名</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg text-secondary">
                             <Lock size={16} />

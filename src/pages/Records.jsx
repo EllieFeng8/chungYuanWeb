@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   RefreshCw,
   Eye,
@@ -30,6 +30,7 @@ function mapApplicationRecord(item) {
   const period = getApplicationPeriod(item);
   return {
     id: item.seqNo,
+    appNo: item.appNo || '',
     status: item.status || '',
     statusLabel: getApplicationStatusLabel(item.status),
     typeName: getApplicationTypeName(item),
@@ -42,6 +43,7 @@ function mapApplicationRecord(item) {
 
 export default function Records() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [records, setRecords] = useState([]);
   const [employeeNo, setEmployeeNo] = useState('');
   const [loading, setLoading] = useState(true);
@@ -156,6 +158,7 @@ export default function Records() {
         state: {
           application: response.data,
           employeeNo,
+          returnTo: location.pathname,
         },
       });
     } catch (error) {
@@ -264,6 +267,7 @@ export default function Records() {
             <table className="w-full text-left border-collapse">
               <thead className="bg-surface-container-low border-b border-outline-variant">
                 <tr>
+                  <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">單號</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請日期時間</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請類型</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">日期時間</th>
@@ -274,7 +278,7 @@ export default function Records() {
               <tbody className="divide-y divide-outline-variant">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-sm text-on-surface-variant">
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-on-surface-variant">
                       申請紀錄載入中...
                     </td>
                   </tr>
@@ -285,6 +289,9 @@ export default function Records() {
                       className="hover:bg-surface-container-low transition-colors group cursor-pointer"
                       onClick={() => void handleOpenRecord(record.id)}
                     >
+                      <td className="px-6 py-5">
+                        <p className="text-sm font-bold text-on-surface">{record.appNo || '-'}</p>
+                      </td>
                       <td className="px-6 py-5">
                         <p className="text-sm font-bold text-on-surface">{record.submittedAt || '-'}</p>
                       </td>
@@ -318,7 +325,7 @@ export default function Records() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-sm text-on-surface-variant">
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-on-surface-variant">
                       目前沒有符合條件的申請紀錄。
                     </td>
                   </tr>
