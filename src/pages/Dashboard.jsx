@@ -108,28 +108,24 @@ export default function Dashboard() {
     return `${firstAssignment.applicantName} 等 ${agentAssignments.length} 筆申請指定您代理。`;
   }, [agentAssignments]);
 
-  async function handleAgentAction(items, action) {
-    const targetItems = Array.isArray(items) ? items.filter((item) => item?.seqNo) : [];
-
-    if (!currentEmployee?.employeeNo || !targetItems.length) {
+  async function handleAgentAction(item, action) {
+    if (!currentEmployee?.employeeNo || !item?.seqNo) {
       return;
     }
 
-    setSubmittingSeqNo(targetItems.map((item) => String(item.seqNo)).join(','));
+    setSubmittingSeqNo(String(item.seqNo));
     try {
-      for (const item of targetItems) {
-        const payload = {
-          actorEmpNo: currentEmployee.employeeNo,
-          ...(typeof item?.rowVer === 'number' ? { rowVer: item.rowVer } : {}),
-        };
+      const payload = {
+        actorEmpNo: currentEmployee.employeeNo,
+        ...(typeof item?.rowVer === 'number' ? { rowVer: item.rowVer } : {}),
+      };
 
-        const response = action === 'accept'
-          ? await acceptAgentRequest(item.seqNo, payload)
-          : await rejectAgentRequest(item.seqNo, payload);
+      const response = action === 'accept'
+        ? await acceptAgentRequest(item.seqNo, payload)
+        : await rejectAgentRequest(item.seqNo, payload);
 
-        if (!response?.success) {
-          throw new Error(response?.error || (action === 'accept' ? '接受代理失敗' : '拒絕代理失敗'));
-        }
+      if (!response?.success) {
+        throw new Error(response?.error || (action === 'accept' ? '接受代理失敗' : '拒絕代理失敗'));
       }
 
       await loadAgentAssignments();
@@ -161,6 +157,7 @@ export default function Dashboard() {
       title: '代理確認',
       html: `
         <div style="text-align:left">
+          <div>單號：${firstAssignment.seqNo}</div>
           <div>申請人：${firstAssignment.applicantName}</div>
           <div>類型：${firstAssignment.typeName}</div>
           <div>待處理筆數：${agentAssignments.length}</div>
@@ -174,9 +171,9 @@ export default function Dashboard() {
     });
 
     if (result.isConfirmed) {
-      await handleAgentAction(agentAssignments, 'accept');
+      await handleAgentAction(firstAssignment, 'accept');
     } else if (result.isDenied) {
-      await handleAgentAction(agentAssignments, 'reject');
+      await handleAgentAction(firstAssignment, 'reject');
     }
   }
 
