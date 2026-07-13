@@ -35,7 +35,7 @@ const POLICY_SECTIONS = [
         rule: '一年內合計不超過 7 日',
         proof: '是',
         pay: '無薪（併入事假計算）',
-        attendance: '扣全勤',
+        attendance: '不扣全勤',
       },
       {
         name: '公傷假',
