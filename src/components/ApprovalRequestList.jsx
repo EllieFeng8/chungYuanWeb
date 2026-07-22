@@ -2,6 +2,7 @@ export default function ApprovalRequestList({
   items,
   loading,
   showAttachmentColumn,
+  isManager = false,
   onRowClick,
   getAgentStatusClassName,
   getApplicationStatusClassName,
@@ -88,7 +89,9 @@ export default function ApprovalRequestList({
                 <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人</th>
                 <th className="w-[11%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人狀態</th>
                 {showAttachmentColumn ? <th className="w-[6%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">附件</th> : null}
-                <th className="w-[8%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">狀態</th>
+                <th className="w-[8%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">
+                  {isManager ? '您的審核狀態' : '狀態'}
+                </th>
                 <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">詳情</th>
               </tr>
             </thead>

@@ -4,6 +4,7 @@ import {
     CalendarDays,
     ChevronLeft,
     ChevronRight,
+    Search,
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { motion } from 'motion/react';
@@ -15,6 +16,7 @@ import Layout from '../components/Layout';
 import {
     getAttachmentDownloadUrl,
     getAttachmentList,
+    getApplicationDetail,
     getDepartmentList,
     getDeptApprovalList,
     getHrApplicationExportUrl,
@@ -132,8 +134,35 @@ function getApprovalRequestDate(item) {
     return date;
 }
 
-function normalizeApprovalItem(item) {
-    const statusLabel = getApplicationStatusLabel(item?.status);
+function resolveCurrentApproverStepState(applicationDetail, currentEmployee, accountDetail) {
+    const steps = Array.isArray(applicationDetail?.steps) ? applicationDetail.steps : [];
+    if (!steps.length) {
+        return '';
+    }
+
+    const currentApproverName = String(currentEmployee?.employeeName || '').trim().toLowerCase();
+    const fallbackApproverNames = [
+        accountDetail?.displayName,
+        accountDetail?.accountName,
+    ]
+        .map((value) => String(value || '').trim().toLowerCase())
+        .filter(Boolean);
+
+    const matchedStep = steps.find((step) => {
+        const approverName = String(step?.approverName || '').trim().toLowerCase();
+        if (currentApproverName && approverName === currentApproverName) {
+            return true;
+        }
+
+        return fallbackApproverNames.includes(approverName);
+    });
+
+    return String(matchedStep?.stepState || '').trim();
+}
+
+function normalizeApprovalItem(item, statusOverride = '') {
+    const normalizedStatus = String(statusOverride || item?.status || '').trim();
+    const statusLabel = getApplicationStatusLabel(normalizedStatus);
     const agentNames = [
         item?.agentName || item?.agentEmpName || item?.agentEmpNo || item?.proxyName || '',
         item?.agent2Name || item?.agent2EmpName || item?.agent2EmpNo || '',
@@ -155,6 +184,7 @@ function normalizeApprovalItem(item) {
         agentStatus: getAgentStatusLabel(item?.agentConfirmState || item?.agentStatus, hasAgent),
         attachmentStatus: attachmentCount >= 1 ? '有' : '無',
         status: statusLabel,
+        currentApprovalStatus: normalizedStatus,
         detail: item?.reason || item?.remark || item?.comment || item?.description || '-',
         raw: item,
     };
@@ -207,6 +237,8 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
     const [departmentFilter, setDepartmentFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState(STATUS_ALL);
     const [requestTypeFilter, setRequestTypeFilter] = useState('all');
+    const [searchInput, setSearchInput] = useState('');
+    const [searchKeyword, setSearchKeyword] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
     const [pageSize, setPageSize] = useState(10);
@@ -215,6 +247,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
     const [departmentOptions, setDepartmentOptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [isManager, setIsManager] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
@@ -224,7 +257,9 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
             try {
                 const { currentEmployee, accountDetail } = await getCurrentEmployeeContext();
                 const isAdmin = accountDetail?.role === 'admin';
+                const isManager = accountDetail?.role === 'manager';
                 setIsAdmin(isAdmin);
+                setIsManager(isManager);
 
                 if (isAdmin) {
                     console.log('[ApprovalList] GET /app-api/hr/applications');
@@ -255,7 +290,39 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
 
                 const records = Array.isArray(approvalResponse.data) ? approvalResponse.data : [];
                 const departments = Array.isArray(departmentResponse.data) ? departmentResponse.data : [];
-                setApprovalList(records.map(normalizeApprovalItem));
+                const normalizedRecords = isAdmin
+                    ? records.map((record) => normalizeApprovalItem(record))
+                    : await Promise.all(
+                        records.map(async (record) => {
+                            const seqNo = record?.seqNo || record?.applicationSeqNo || record?.id;
+                            if (!seqNo) {
+                                return normalizeApprovalItem(record);
+                            }
+
+                            try {
+                                const detailResponse = await getApplicationDetail(seqNo);
+                                if (!detailResponse?.success) {
+                                    return normalizeApprovalItem(record);
+                                }
+
+                                const currentStepState = resolveCurrentApproverStepState(
+                                    detailResponse.data,
+                                    currentEmployee,
+                                    accountDetail
+                                );
+
+                                return normalizeApprovalItem(record, currentStepState);
+                            } catch (detailError) {
+                                console.error('[ApprovalList] application detail read failed', {
+                                    seqNo,
+                                    error: detailError instanceof Error ? detailError.message : detailError,
+                                });
+                                return normalizeApprovalItem(record);
+                            }
+                        })
+                    );
+
+                setApprovalList(normalizedRecords);
                 setDepartmentOptions(
                     departments
                         .map((department) => {
@@ -300,6 +367,29 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
 
     const filteredApprovalList = useMemo(() => (
         approvalList.filter((item) => {
+            const normalizedKeyword = searchKeyword.trim().toLowerCase();
+            if (normalizedKeyword) {
+                const searchableText = [
+                    item.seqNo,
+                    item.department,
+                    item.applicant,
+                    item.requestTime,
+                    item.type,
+                    item.duration,
+                    item.agentName,
+                    item.agentStatus,
+                    item.attachmentStatus,
+                    item.status,
+                    item.detail,
+                ]
+                    .map((value) => String(value || '').toLowerCase())
+                    .join(' ');
+
+                if (!searchableText.includes(normalizedKeyword)) {
+                    return false;
+                }
+            }
+
             if (departmentFilter !== 'all' && item.department !== departmentFilter) {
                 return false;
             }
@@ -320,7 +410,8 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
             }
 
             const normalizedStatus = STATUS_QUERY_MAP[statusFilter];
-            if (normalizedStatus && item.raw?.status !== normalizedStatus) {
+            const statusValue = isAdmin ? item.raw?.status : item.currentApprovalStatus;
+            if (normalizedStatus && statusValue !== normalizedStatus) {
                 return false;
             }
 
@@ -334,24 +425,19 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
 
             return true;
         })
-    ), [approvalList, dateFrom, dateTo, departmentFilter, requestTypeFilter, statusFilter]);
+    ), [approvalList, dateFrom, dateTo, departmentFilter, requestTypeFilter, searchKeyword, statusFilter]);
 
     const selectedDepartmentOption = useMemo(() => (
         departmentOptions.find((department) => department.name === departmentFilter) || null
     ), [departmentFilter, departmentOptions]);
 
-    const departmentSelectWidth = useMemo(() => {
-        const longestDepartmentLength = departmentOptions.reduce(
-            (maxLength, department) => Math.max(maxLength, String(department?.name || '').length),
-            '所有部門'.length
-        );
-
-        return `${Math.max(12, longestDepartmentLength + 3)}ch`;
-    }, [departmentOptions]);
-
     useEffect(() => {
         setCurrentPage(1);
-    }, [departmentFilter, statusFilter, requestTypeFilter, dateFrom, dateTo, pageSize]);
+    }, [departmentFilter, statusFilter, requestTypeFilter, searchKeyword, dateFrom, dateTo, pageSize]);
+
+    const handleSearch = () => {
+        setSearchKeyword(searchInput.trim());
+    };
 
     const statsOverview = useMemo(() => ([
         {
@@ -483,7 +569,14 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         });
     };
 
-    const getStatusClassName = (item) => getApplicationStatusStyles(STATUS_QUERY_MAP[item.status] || item.raw?.status);
+    const getStatusClassName = (item) => {
+        const statusValue = isAdmin ? item.raw?.status : (item.currentApprovalStatus || item.raw?.status);
+        if (statusValue === 'approved') {
+            return 'bg-green-50 text-green-700 border-green-200';
+        }
+
+        return getApplicationStatusStyles(statusValue);
+    };
 
     return (
         <Layout title="">
@@ -551,61 +644,89 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
             <section className="card bg-surface-container-lowest">
                 <div className="p-6 border-b border-outline-variant">
                     <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setStatusFilter(STATUS_ALL)}
-                                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
-                                    statusFilter === STATUS_ALL
-                                        ? 'bg-primary text-white'
-                                        : 'bg-surface-container border border-outline-variant text-secondary hover:bg-surface-container-high'
-                                }`}
-                            >
-                                全部
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setStatusFilter('審核中')}
-                                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
-                                    statusFilter === '審核中'
-                                        ? 'bg-primary text-white'
-                                        : 'bg-surface-container border border-outline-variant text-secondary hover:bg-surface-container-high'
-                                }`}
-                            >
-                                審核中
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setStatusFilter('已核准')}
-                                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
-                                    statusFilter === '已核准'
-                                        ? 'bg-primary text-white'
-                                        : 'bg-surface-container border border-outline-variant text-secondary hover:bg-surface-container-high'
-                                }`}
-                            >
-                                已核准
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setStatusFilter('已駁回')}
-                                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
-                                    statusFilter === '已駁回'
-                                        ? 'bg-primary text-white'
-                                        : 'bg-surface-container border border-outline-variant text-secondary hover:bg-surface-container-high'
-                                }`}
-                            >
-                                已駁回
-                            </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusFilter(STATUS_ALL)}
+                                    className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
+                                        statusFilter === STATUS_ALL
+                                            ? 'bg-primary text-white'
+                                            : 'bg-surface-container border border-outline-variant text-secondary hover:bg-surface-container-high'
+                                    }`}
+                                >
+                                    全部
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusFilter('審核中')}
+                                    className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
+                                        statusFilter === '審核中'
+                                            ? 'bg-primary text-white'
+                                            : 'bg-surface-container border border-outline-variant text-secondary hover:bg-surface-container-high'
+                                    }`}
+                                >
+                                    審核中
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-2 whitespace-nowrap">
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusFilter('已核准')}
+                                    className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
+                                        statusFilter === '已核准'
+                                            ? 'bg-primary text-white'
+                                            : 'bg-surface-container border border-outline-variant text-secondary hover:bg-surface-container-high'
+                                    }`}
+                                >
+                                    已核准
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusFilter('已駁回')}
+                                    className={`px-4 py-2 rounded-full text-xs font-bold transition-colors ${
+                                        statusFilter === '已駁回'
+                                            ? 'bg-primary text-white'
+                                            : 'bg-surface-container border border-outline-variant text-secondary hover:bg-surface-container-high'
+                                    }`}
+                                >
+                                    已駁回
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-end gap-3">
-                            <div className="flex items-center gap-2 min-w-0">
-                                <label className="text-xs text-secondary whitespace-nowrap">部門:</label>
+                        <div className="grid w-full grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(180px,0.8fr)_minmax(0,1.2fr)_auto] xl:grid-cols-[minmax(260px,1.25fr)_minmax(180px,0.85fr)_minmax(320px,1.35fr)_auto] xl:items-end">
+                            <div className="flex min-w-0 flex-col gap-1">
+                                <label className="text-xs text-secondary whitespace-nowrap">搜索</label>
+                                <div className="flex min-w-0 items-center gap-2">
+                                    <input
+                                        type="text"
+                                        value={searchInput}
+                                        onChange={(event) => setSearchInput(event.target.value)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Enter') {
+                                                handleSearch();
+                                            }
+                                        }}
+                                        placeholder="輸入關鍵字"
+                                        className="h-10 min-w-0 flex-1 border border-outline-variant rounded-lg px-3 text-sm bg-surface-container-lowest focus:ring-1 focus:ring-primary outline-none"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleSearch}
+                                        className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                                    >
+                                        <Search className="w-4 h-4" />
+                                        搜索
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="flex min-w-0 flex-col gap-1">
+                                <label className="text-xs text-secondary whitespace-nowrap">部門</label>
                                 <select
                                     value={departmentFilter}
                                     onChange={(event) => setDepartmentFilter(event.target.value)}
-                                    style={{ width: departmentSelectWidth }}
-                                    className="h-10 max-w-full border border-outline-variant rounded-lg px-3 text-sm bg-surface-container-lowest focus:ring-1 focus:ring-primary outline-none"
+                                    className="h-10 w-full min-w-0 border border-outline-variant rounded-lg px-3 text-sm bg-surface-container-lowest focus:ring-1 focus:ring-primary outline-none"
                                 >
                                     <option value="all">所有部門</option>
                                     {departmentOptions.map((department) => (
@@ -613,35 +734,29 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                                     ))}
                                 </select>
                             </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <label className="text-xs text-secondary whitespace-nowrap">申請起迄日期:</label>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <div className="relative">
-                                        <input
-                                            type="date"
-                                            value={dateFrom}
-                                            onChange={(event) => setDateFrom(event.target.value)}
-                                            className="h-10 w-[148px] border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                        />
-
-                                    </div>
-                                    <span className="text-secondary">-</span>
-                                    <div className="relative">
-                                        <input
-                                            type="date"
-                                            value={dateTo}
-                                            onChange={(event) => setDateTo(event.target.value)}
-                                            className="h-10 w-[148px] border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
-                                        />
-
-                                    </div>
+                            <div className="flex min-w-0 flex-col gap-1">
+                                <label className="text-xs text-secondary whitespace-nowrap">申請起迄日期</label>
+                                <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                                    <input
+                                        type="date"
+                                        value={dateFrom}
+                                        onChange={(event) => setDateFrom(event.target.value)}
+                                        className="h-10 w-full border border-outline rounded-lg bg-white px-3 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none"
+                                    />
+                                    <span className="text-center text-secondary whitespace-nowrap">-</span>
+                                    <input
+                                        type="date"
+                                        value={dateTo}
+                                        onChange={(event) => setDateTo(event.target.value)}
+                                        className="h-10 w-full border border-outline rounded-lg bg-white px-3 text-sm text-on-surface focus:ring-1 focus:ring-primary outline-none"
+                                    />
                                 </div>
                             </div>
                             {isAdmin && (
                                 <button
                                     type="button"
                                     onClick={handleDownload}
-                                    className="flex w-[72px] flex-none items-center justify-center gap-1 text-sm font-medium text-slate-400 transition-colors hover:text-brand"
+                                    className="flex h-10 w-full items-center justify-center gap-1 rounded-lg border border-outline-variant px-3 text-sm font-medium text-slate-500 transition-colors hover:bg-surface-container-high hover:text-brand lg:w-auto lg:min-w-[88px]"
                                 >
                                     <Download className="w-4 h-4" />
                                     匯出
@@ -655,6 +770,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                     items={paginatedApprovalList}
                     loading={loading}
                     showAttachmentColumn={showAttachmentColumn}
+                    isManager={isManager}
                     onRowClick={handleRowClick}
                     getAgentStatusClassName={getAgentStatusStyles}
                     getApplicationStatusClassName={getStatusClassName}

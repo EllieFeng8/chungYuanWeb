@@ -5,12 +5,12 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
-  const appUrl = env.APP_URL || 'https://doukeyi.aeyeot.co';
+  const appUrl = env.APP_URL || `http://localhost:${env.PORT || 3000}`;
   const appHost = (() => {
     try {
       return new URL(appUrl).hostname;
     } catch {
-      return 'doukeyi.aeyeot.co';
+      return 'localhost';
     }
   })();
   const isHmrDisabled = env.DISABLE_HMR === 'true';
