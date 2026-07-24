@@ -14,7 +14,7 @@ import {
 } from './icons';
 import { Building2, Users, X } from "lucide-react";
 import { motion } from 'motion/react';
-import { getAccountDetail } from '../lib/cfctApi';
+import { getAccountDetail, revokeApiKey } from '../lib/cfctApi';
 
 const ROLE_STORAGE_KEY = 'userRole';
 const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
@@ -106,7 +106,21 @@ export default function Layout({ children, title = "", showBack = false }) {
     setIsMobileSidebarOpen(false);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const storedSeqNo =
+      localStorage.getItem(ACCOUNT_SEQNO_STORAGE_KEY)
+      || sessionStorage.getItem(ACCOUNT_SEQNO_STORAGE_KEY);
+
+    if (storedSeqNo) {
+      try {
+        console.log('[Layout] PATCH /app-api/api-key/:seqNo/revoke', { seqNo: storedSeqNo });
+        const response = await revokeApiKey(storedSeqNo);
+        console.log('[Layout] revoke api key response', response);
+      } catch (error) {
+        console.warn('[Layout] revoke api key failed', error);
+      }
+    }
+
     [
       ROLE_STORAGE_KEY,
       ACCOUNT_NAME_STORAGE_KEY,
@@ -214,7 +228,7 @@ export default function Layout({ children, title = "", showBack = false }) {
             <p className="text-m">{displayName}</p>
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => void handleLogout()}
               className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm text-secondary transition-colors hover:bg-surface-container-high"
               aria-label="登出"
             >

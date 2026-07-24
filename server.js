@@ -384,6 +384,16 @@ app.post('/app-api/accounts', (req, res) => {
   });
 });
 
+function revokeApiKey(req, res) {
+  return forwardJson(res, `/api/api-key/${req.params.seqNo}/revoke`, {
+    method: 'PATCH',
+    body: JSON.stringify(req.body || {}),
+  });
+}
+
+app.patch('/app-api/api-key/:seqNo/revoke', revokeApiKey);
+app.patch('/app-api/api-keys/:seqNo/revoke', revokeApiKey);
+
 app.patch('/app-api/accounts/:seqNo/role', (req, res) => {
   return forwardJson(res, `/api/account/${req.params.seqNo}/role`, {
     method: 'PATCH',

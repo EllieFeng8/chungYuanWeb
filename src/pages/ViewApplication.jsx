@@ -469,13 +469,7 @@ export default function ViewApplication() {
         timer: 1200,
       });
 
-      if (isCancel) {
-        navigate(recordsReturnPath, { replace: true });
-        return;
-      }
-
-      await loadApplicationDetail();
-      setAttachments([]);
+      navigate(recordsReturnPath, { replace: true });
     } catch (error) {
       void Swal.fire({
         icon: 'error',

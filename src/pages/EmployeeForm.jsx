@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { User, ShieldCheck, ChevronDown, KeyRound, Link2, LockKeyhole, Trash2 } from "lucide-react";
+import { User, ShieldCheck, ChevronDown, Eye, EyeOff, Link2, LockKeyhole, Trash2 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Layout from '../components/Layout';
 import {
@@ -18,6 +18,7 @@ import {
   updateAccountProfile,
   updateAccountRole,
 } from '../lib/cfctApi';
+import { getBoundAccountPassword, setBoundAccountPassword } from '../lib/accountPasswords';
 
 const ACCOUNT_ROLE_LABELS = {
     admin: '系統管理員',
@@ -36,6 +37,7 @@ const EMPLOYEE_ROLE_LABELS = {
 };
 const EMPTY_EMPLOYEE_FORM = {
     employeeNo: '',
+    password: '',
     employeeName: '',
     departmentNo: '',
     managerEmpNo: '',
@@ -67,9 +69,11 @@ export default function EmployeeForm({ mode = "add" }) {
     const [employeeDetail, setEmployeeDetail] = useState(employee ?? null);
     const [employeeFormLoading, setEmployeeFormLoading] = useState(!isAccountMode);
     const [employeeSaving, setEmployeeSaving] = useState(false);
+    const [isEmployeePasswordVisible, setIsEmployeePasswordVisible] = useState(false);
     const [employeeForm, setEmployeeForm] = useState(() => ({
         ...EMPTY_EMPLOYEE_FORM,
         employeeNo: employee?.employeeNo ?? '',
+        password: '',
         employeeName: employee?.employeeName ?? employee?.name ?? '',
         departmentNo: employee?.departmentNo ?? '',
         managerEmpNo: employee?.managerEmpNo ?? '',
@@ -289,6 +293,7 @@ export default function EmployeeForm({ mode = "add" }) {
                 setEmployeeForm({
                     ...EMPTY_EMPLOYEE_FORM,
                     employeeNo: response.data.employeeNo ?? '',
+                    password: getBoundAccountPassword(response.data.employeeNo) || '',
                     employeeName: response.data.employeeName ?? '',
                     departmentNo: response.data.departmentNo ?? '',
                     managerEmpNo: response.data.managerEmpNo ?? '',
@@ -361,9 +366,19 @@ export default function EmployeeForm({ mode = "add" }) {
             return;
         }
 
+        if (!isEditMode && !employeeForm.password) {
+            void Swal.fire({
+                icon: 'warning',
+                title: '請設定密碼',
+                text: '新增員工時需設定登入密碼。',
+            });
+            return;
+        }
+
         setEmployeeSaving(true);
         try {
             const normalizedEmployeeNo = employeeForm.employeeNo.trim();
+            const normalizedPassword = employeeForm.password;
             const normalizedEmployeeName = employeeForm.employeeName.trim();
             const normalizedDepartmentNo = normalizeOptional(employeeForm.departmentNo);
             const normalizedManagerEmpNo = normalizeOptional(employeeForm.managerEmpNo);
@@ -442,6 +457,24 @@ export default function EmployeeForm({ mode = "add" }) {
                     latestDetail = await refreshAccountDetail(latestDetail.seqNo);
                 }
 
+                if (normalizedPassword && normalizedPassword !== getBoundAccountPassword(latestDetail.accountName)) {
+                    const payload = {
+                        newPassword: normalizedPassword,
+                        rowVer: latestDetail.rowVer,
+                    };
+                    console.log('[EmployeeForm] PATCH /app-api/accounts/:seqNo/password-reset', {
+                        seqNo: latestDetail.seqNo,
+                        body: { newPassword: '********', rowVer: latestDetail.rowVer },
+                    });
+                    const response = await resetAccountPassword(latestDetail.seqNo, payload);
+                    console.log('[EmployeeForm] update employee password response', response);
+                    if (!response?.success) {
+                        throw new Error(response?.error || '更新員工密碼失敗');
+                    }
+                    setBoundAccountPassword(latestDetail.accountName, normalizedPassword);
+                    latestDetail = await refreshAccountDetail(latestDetail.seqNo);
+                }
+
                 const orgPayload = {
                     employeeNo: normalizedEmployeeNo,
                     departmentNo: normalizedDepartmentNo,
@@ -463,6 +496,7 @@ export default function EmployeeForm({ mode = "add" }) {
             } else {
                 const payload = {
                     accountName: normalizedEmployeeNo,
+                    password: normalizedPassword,
                     displayName: normalizedEmployeeName,
                     role: employeeForm.role,
                     lineUserId: normalizedLineUserId,
@@ -479,6 +513,7 @@ export default function EmployeeForm({ mode = "add" }) {
                 if (!response?.success) {
                     throw new Error(response?.error || '建立員工失敗');
                 }
+                setBoundAccountPassword(normalizedEmployeeNo, normalizedPassword);
             }
 
             void Swal.fire({
@@ -661,59 +696,6 @@ export default function EmployeeForm({ mode = "add" }) {
                 icon: 'error',
                 title: '更新失敗',
                 text: error instanceof Error ? error.message : '無法更新帳號',
-            });
-        } finally {
-            setAccountSaving(false);
-        }
-    }
-
-    async function handleResetPassword() {
-        if (!accountDetail) {
-            return;
-        }
-        const result = await Swal.fire({
-            title: '重設密碼',
-            input: 'password',
-            inputLabel: '請輸入新密碼',
-            inputPlaceholder: '至少 8 碼',
-            showCancelButton: true,
-            confirmButtonText: '送出',
-            cancelButtonText: '取消',
-            inputValidator: (value) => (!value || value.length < 8 ? '密碼至少 8 碼' : undefined),
-        });
-
-        if (!result.isConfirmed) {
-            return;
-        }
-
-        setAccountSaving(true);
-        try {
-            console.log('[EmployeeForm] PATCH /app-api/accounts/:seqNo/password-reset', {
-                seqNo: accountDetail.seqNo,
-                body: { newPassword: '********', rowVer: accountDetail.rowVer },
-            });
-            const response = await resetAccountPassword(accountDetail.seqNo, {
-                newPassword: result.value,
-                rowVer: accountDetail.rowVer,
-            });
-            console.log('[EmployeeForm] reset password response', response);
-            if (!response.success) {
-                throw new Error(response.error || '重設密碼失敗');
-            }
-            console.log('[EmployeeForm] GET /app-api/accounts/:seqNo', { seqNo: accountDetail.seqNo });
-            const refreshed = await getAccountDetail(accountDetail.seqNo);
-            console.log('[EmployeeForm] refreshed account detail after password reset', refreshed);
-            if (refreshed.success) {
-                setAccountDetail(refreshed.data);
-                setAccountDisplayName(refreshed.data?.displayName || '');
-                syncStoredDisplayName(refreshed.data?.seqNo, refreshed.data?.displayName || '');
-            }
-            void Swal.fire({ icon: 'success', title: '密碼已重設', timer: 1200, showConfirmButton: false });
-        } catch (error) {
-            void Swal.fire({
-                icon: 'error',
-                title: '重設失敗',
-                text: error instanceof Error ? error.message : '無法重設密碼',
             });
         } finally {
             setAccountSaving(false);
@@ -948,11 +930,21 @@ export default function EmployeeForm({ mode = "add" }) {
 
                                     </div>
 
-                                    <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                                        <ToolbarButton icon={KeyRound} label="重設密碼" onClick={() => void handleResetPassword()} />
-                                        <ToolbarButton icon={LockKeyhole} label="解鎖帳號" onClick={() => void handleUnlock()} />
+                                    <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                        <ToolbarButton
+                                            icon={LockKeyhole}
+                                            label="解鎖帳號"
+                                            onClick={() => void handleUnlock()}
+                                            disabled={accountSaving || accountLoading}
+                                        />
                                         <ToolbarButton icon={Link2} label="刷新資料" onClick={() => navigate(0)} />
-                                        <ToolbarButton danger icon={Trash2} label="刪除帳號" onClick={() => void handleDeleteAccount()} />
+                                        <ToolbarButton
+                                            danger
+                                            icon={Trash2}
+                                            label="刪除帳號"
+                                            onClick={() => void handleDeleteAccount()}
+                                            disabled={accountSaving || accountLoading}
+                                        />
                                     </div>
 
                                     <div className="mt-10 bg-surface-container-low rounded-xl p-5 flex items-start gap-4 border border-outline-variant/30">
@@ -1033,6 +1025,15 @@ export default function EmployeeForm({ mode = "add" }) {
                                         value={employeeForm.employeeName}
                                         placeholder="請輸入姓名"
                                         onChange={(value) => handleEmployeeFormChange('employeeName', value)}
+                                    />
+
+                                    <PasswordField
+                                        label={isEditMode ? '密碼' : '密碼 *'}
+                                        value={employeeForm.password}
+                                        placeholder={isEditMode ? '留空則不變更密碼' : '請設定登入密碼'}
+                                        visible={isEmployeePasswordVisible}
+                                        onToggleVisible={() => setIsEmployeePasswordVisible((current) => !current)}
+                                        onChange={(value) => handleEmployeeFormChange('password', value)}
                                     />
 
                                     <div className="space-y-2">
@@ -1171,12 +1172,12 @@ export default function EmployeeForm({ mode = "add" }) {
                                     </div>
                                 </div>
                                 {isEditMode ? (
-                                    <div className="mt-6 flex justify-end">
+                                    <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
                                         <button
                                             type="button"
                                             onClick={() => void handleDeleteEmployee()}
                                             disabled={employeeSaving || employeeFormLoading}
-                                            className="px-5 py-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors text-sm font-bold disabled:opacity-50"
+                                            className="px-5 py-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             刪除員工
                                         </button>
@@ -1219,12 +1220,43 @@ function FormInput({ label, onChange, ...props }) {
     );
 }
 
-function ToolbarButton({ icon: Icon, label, onClick, danger = false }) {
+function PasswordField({ label, value, placeholder, visible, onToggleVisible, onChange }) {
+    const Icon = visible ? EyeOff : Eye;
+
+    return (
+        <div className="space-y-2">
+            <label className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest">
+                {label}
+            </label>
+            <div className="relative">
+                <input
+                    type={visible ? 'text' : 'password'}
+                    value={value}
+                    placeholder={placeholder}
+                    className="w-full h-11 px-4 pr-11 bg-white border border-outline rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
+                    onChange={(event) => onChange(event.target.value)}
+                />
+                <button
+                    type="button"
+                    onClick={onToggleVisible}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant transition-colors hover:text-primary"
+                    aria-label={visible ? '隱藏密碼' : '顯示密碼'}
+                    title={visible ? '隱藏密碼' : '顯示密碼'}
+                >
+                    <Icon size={18} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function ToolbarButton({ icon: Icon, label, onClick, danger = false, disabled = false }) {
     return (
         <button
             type="button"
             onClick={onClick}
-            className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-semibold transition-colors ${
+            disabled={disabled}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 danger
                     ? 'border-red-200 text-red-500 hover:bg-red-50'
                     : 'border-outline text-secondary hover:bg-surface-container'

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, User, Lock, ArrowRight, AlertCircle } from '../components/icons';
 import { motion } from 'motion/react';
 import { getAccountByLineUserId, getAccounts, getHealth } from '../lib/cfctApi';
+import { isBoundAccountPassword } from '../lib/accountPasswords';
 
 const ROLE_STORAGE_KEY = 'userRole';
 const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
@@ -230,14 +231,18 @@ export default function Login() {
       return;
     }
 
-    if (!password.trim()) {
-      setError('目前尚未接上密碼驗證，請至少輸入一個值再分流測試。');
+    if (!password) {
+      setError('請輸入密碼');
       return;
     }
 
     setIsLoading(true);
     try {
       const matchedAccount = await resolveAccountByName(accountName);
+      if (!isBoundAccountPassword(matchedAccount?.accountName, password)) {
+        throw new Error('帳號或密碼錯誤');
+      }
+
       const roleConfig = validateLoginAccount(matchedAccount);
       persistLoginSession(matchedAccount, roleConfig, remember);
       navigate(roleConfig.path);
@@ -276,7 +281,6 @@ export default function Login() {
         <div className="p-6 sm:p-10">
           <header className="mb-6 sm:mb-8">
             <h2 className="text-xl sm:text-2xl font-bold text-on-surface mb-2">帳號登入</h2>
-            {/*<p className="text-sm text-on-surface-variant">目前以前置帳號 API 做權限分流，尚未接上正式密碼驗證。</p>*/}
           </header>
 
           {/*<div className={`mb-6 rounded-lg border p-4 flex gap-3 ${apiStatus.reachable && apiStatus.configured ? 'bg-primary/5 border-primary/20' : 'bg-error-container border-error/20'}`}>*/}

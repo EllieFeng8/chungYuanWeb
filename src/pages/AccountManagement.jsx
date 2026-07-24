@@ -17,6 +17,7 @@ import {
   getAccounts,
   getActiveLineUsers,
 } from '../lib/cfctApi';
+import { setBoundAccountPassword } from '../lib/accountPasswords';
 
 const ROLE_LABELS = {
   admin: '系統管理員',
@@ -141,6 +142,7 @@ export default function AccountManagement() {
         throw new Error(response.error || '建立帳號失敗');
       }
 
+      setBoundAccountPassword(createForm.accountName, createForm.password);
       setCreateForm(EMPTY_FORM);
       setIsCreateOpen(false);
       await loadAccounts(includeAll);

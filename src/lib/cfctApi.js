@@ -201,6 +201,13 @@ export function createAccount(payload) {
   });
 }
 
+export function revokeApiKey(seqNo, payload = {}) {
+  return request(`/app-api/api-key/${seqNo}/revoke`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function updateAccountRole(seqNo, payload) {
   return request(`/app-api/accounts/${seqNo}/role`, {
     method: 'PATCH',

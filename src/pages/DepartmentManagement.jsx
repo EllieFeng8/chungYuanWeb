@@ -421,8 +421,10 @@ export default function DepartmentManagement() {
               <span className="font-semibold text-slate-700">部門列表</span>
               <button
                 type="button"
+                title="新增部門"
+                aria-label="新增部門"
                 onClick={() => openCreateModal(selectedDepartment?.departmentNo || '')}
-                className="flex h-8 w-8 items-center justify-center rounded-sm bg-brand text-white transition-colors hover:bg-brand/90"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary bg-primary text-white shadow-sm transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 <Plus className="h-5 w-5" />
               </button>
