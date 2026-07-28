@@ -473,11 +473,11 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
     const paginatedApprovalList = filteredApprovalList.slice(startIndex, endIndex);
     const showAttachmentColumn = isAdmin || forceShowAttachmentColumn;
     const visiblePageNumbers = useMemo(() => {
-        const pages = [];
-        for (let page = 1; page <= totalPages; page += 1) {
-            pages.push(page);
+        if (totalPages <= 5) {
+            return Array.from({ length: totalPages }, (_, index) => index + 1);
         }
-        return pages;
+
+        return [1, 2, 3, 'ellipsis', totalPages - 1, totalPages];
     }, [totalPages]);
 
     const handleDownload = async () => {
@@ -805,16 +805,25 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                             <ChevronLeft size={18} />
                         </button>
                         {visiblePageNumbers.map((page) => (
-                            <button
-                                key={page}
-                                type="button"
-                                onClick={() => setCurrentPage(page)}
-                                className={page === safeCurrentPage
-                                    ? 'w-9 h-9 bg-primary text-white rounded-lg font-bold text-sm flex items-center justify-center shadow-sm'
-                                    : 'w-9 h-9 border border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors text-sm font-bold'}
-                            >
-                                {page}
-                            </button>
+                            page === 'ellipsis' ? (
+                                <span
+                                    key={page}
+                                    className="w-9 h-9 flex items-center justify-center text-on-surface-variant text-sm font-bold"
+                                >
+                                    ...
+                                </span>
+                            ) : (
+                                <button
+                                    key={page}
+                                    type="button"
+                                    onClick={() => setCurrentPage(page)}
+                                    className={page === safeCurrentPage
+                                        ? 'w-9 h-9 bg-primary text-white rounded-lg font-bold text-sm flex items-center justify-center shadow-sm'
+                                        : 'w-9 h-9 border border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors text-sm font-bold'}
+                                >
+                                    {page}
+                                </button>
+                            )
                         ))}
                         <button
                             type="button"
