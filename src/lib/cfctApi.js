@@ -34,6 +34,13 @@ export function getHealth() {
   return request('/app-api/health');
 }
 
+export function login(payload) {
+  return request('/app-api/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getLeaveTypeList(category) {
   return request(`/app-api/leave-types?category=${encodeURIComponent(category)}`);
 }

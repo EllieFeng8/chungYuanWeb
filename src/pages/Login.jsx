@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, User, Lock, ArrowRight, AlertCircle } from '../components/icons';
 import { motion } from 'motion/react';
-import { getAccountByLineUserId, getAccounts, getHealth } from '../lib/cfctApi';
-import { isBoundAccountPassword } from '../lib/accountPasswords';
+import { getAccountByLineUserId, getHealth, login } from '../lib/cfctApi';
 
 const ROLE_STORAGE_KEY = 'userRole';
 const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
@@ -11,6 +10,33 @@ const DISPLAY_NAME_STORAGE_KEY = 'loginDisplayName';
 const ACCOUNT_SEQNO_STORAGE_KEY = 'loginAccountSeqNo';
 const LINE_USER_ID_STORAGE_KEY = 'loginLineUserId';
 const LINE_AUTO_LOGIN_ENABLED_STORAGE_KEY = 'lineAutoLoginEnabled';
+const LOGIN_FAILURE_COUNTS_STORAGE_KEY = 'loginFailureCounts';
+const LOGIN_LOCK_ATTEMPT_LIMIT = 5;
+
+function normalizeLoginAccountName(accountName) {
+  return String(accountName || '').trim().toLowerCase();
+}
+
+function readLoginFailureCounts() {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const rawValue = sessionStorage.getItem(LOGIN_FAILURE_COUNTS_STORAGE_KEY);
+    return rawValue ? JSON.parse(rawValue) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLoginFailureCounts(failureCounts) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  sessionStorage.setItem(LOGIN_FAILURE_COUNTS_STORAGE_KEY, JSON.stringify(failureCounts));
+}
 
 function getStoredLineUserId() {
   if (typeof window === 'undefined') {
@@ -97,19 +123,14 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
-  const [accounts, setAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [error, setError] = useState('');
-  const [accountsLoadError, setAccountsLoadError] = useState('');
+  const [remainingLoginAttempts, setRemainingLoginAttempts] = useState(null);
   const [apiStatus, setApiStatus] = useState({ configured: false, reachable: false });
   const [isAutoLogin, setIsAutoLogin] = useState(false);
   const [autoLoginEnabled, setAutoLoginEnabled] = useState(() => isStoredAutoLoginEnabled());
   const [savedLineUserId, setSavedLineUserId] = useState(() => getStoredLineUserId());
-
-  const accountLookup = useMemo(() => {
-    return new Map(accounts.map((account) => [account.accountName.toLowerCase(), account]));
-  }, [accounts]);
 
   useEffect(() => {
     let active = true;
@@ -117,7 +138,7 @@ export default function Login() {
     async function bootstrap() {
       setIsBootstrapping(true);
       setError('');
-      setAccountsLoadError('');
+      setRemainingLoginAttempts(null);
       const queryLineUserId = getQueryLineUserId();
       const persistedLineUserId = getStoredLineUserId();
       const lineUserId = queryLineUserId || (autoLoginEnabled ? persistedLineUserId : '');
@@ -154,30 +175,6 @@ export default function Login() {
           navigate(roleConfig.path);
           return;
         }
-
-        try {
-          const accountsResponse = await getAccounts(true);
-          if (!accountsResponse.success) {
-            throw new Error(accountsResponse.error || '無法讀取帳號清單');
-          }
-
-          if (!active) {
-            return;
-          }
-
-          setAccounts(accountsResponse.data || []);
-        } catch (accountsError) {
-          if (!active) {
-            return;
-          }
-
-          setAccounts([]);
-          setAccountsLoadError(
-            accountsError instanceof Error
-              ? `${accountsError.message} 請稍後再試，或於輸入帳號後重新登入。`
-              : '帳號清單載入失敗，請稍後再試。',
-          );
-        }
       } catch (bootstrapError) {
         if (!active) {
           return;
@@ -205,27 +202,13 @@ export default function Login() {
     localStorage.setItem(LINE_AUTO_LOGIN_ENABLED_STORAGE_KEY, String(nextValue));
   };
 
-  const resolveAccountByName = async (accountName) => {
-    const cachedAccount = accountLookup.get(accountName);
-    if (cachedAccount) {
-      return cachedAccount;
-    }
-
-    const accountsResponse = await getAccounts(true);
-    if (!accountsResponse.success) {
-      throw new Error(accountsResponse.error || '無法讀取帳號清單');
-    }
-
-    const latestAccounts = accountsResponse.data || [];
-    setAccounts(latestAccounts);
-    return latestAccounts.find((account) => account.accountName.toLowerCase() === accountName) || null;
-  };
-
   const handleLogin = async (event) => {
     event.preventDefault();
     setError('');
+    setRemainingLoginAttempts(null);
 
-    const accountName = username.trim().toLowerCase();
+    const accountName = username.trim();
+    const normalizedAccountName = normalizeLoginAccountName(accountName);
     if (!accountName) {
       setError('請輸入使用者名稱');
       return;
@@ -238,16 +221,37 @@ export default function Login() {
 
     setIsLoading(true);
     try {
-      const matchedAccount = await resolveAccountByName(accountName);
-      if (!isBoundAccountPassword(matchedAccount?.accountName, password)) {
-        throw new Error('帳號或密碼錯誤');
+      const loginResponse = await login({
+        accountName,
+        password,
+      });
+
+      if (!loginResponse?.success) {
+        throw new Error(loginResponse?.error || '帳號或密碼錯誤');
       }
 
+      const matchedAccount = loginResponse.data;
       const roleConfig = validateLoginAccount(matchedAccount);
+      const nextFailureCounts = readLoginFailureCounts();
+      delete nextFailureCounts[normalizedAccountName];
+      writeLoginFailureCounts(nextFailureCounts);
       persistLoginSession(matchedAccount, roleConfig, remember);
       navigate(roleConfig.path);
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : '登入驗證失敗');
+      const message = loginError instanceof Error ? loginError.message : '登入驗證失敗';
+
+      if (message.includes('帳號或密碼錯誤')) {
+        const nextFailureCounts = readLoginFailureCounts();
+        const nextFailureCount = Math.min(
+          LOGIN_LOCK_ATTEMPT_LIMIT,
+          Number(nextFailureCounts[normalizedAccountName] || 0) + 1,
+        );
+        nextFailureCounts[normalizedAccountName] = nextFailureCount;
+        writeLoginFailureCounts(nextFailureCounts);
+        setRemainingLoginAttempts(Math.max(LOGIN_LOCK_ATTEMPT_LIMIT - nextFailureCount, 0));
+      }
+
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -303,16 +307,13 @@ export default function Login() {
               <div className="flex flex-col">
                 <span className="text-sm font-bold text-error">登入失敗</span>
                 <p className="text-xs text-on-error-container">{error}</p>
-              </div>
-            </div>
-          ) : null}
-
-          {accountsLoadError ? (
-            <div className="bg-surface-container-low border border-outline-variant p-4 rounded-lg flex gap-3 mb-8">
-              <AlertCircle className="text-secondary shrink-0" size={20} />
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-on-surface">帳號清單尚未載入</span>
-                <p className="text-xs text-on-surface-variant">{accountsLoadError}</p>
+                {remainingLoginAttempts === null ? (
+                  <p className="mt-1 text-xs text-on-error-container">提醒：連續登入失敗 5 次會鎖定帳號，請確認帳號與密碼後再試。</p>
+                ) : (
+                  <p className="mt-1 text-xs text-on-error-container">
+                    提醒：連續登入失敗 5 次會鎖定帳號，還可嘗試 {remainingLoginAttempts} 次。
+                  </p>
+                )}
               </div>
             </div>
           ) : null}

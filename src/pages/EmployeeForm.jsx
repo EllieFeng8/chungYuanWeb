@@ -542,7 +542,7 @@ export default function EmployeeForm({ mode = "add" }) {
         const result = await Swal.fire({
             icon: 'warning',
             title: `刪除員工 ${employeeDetail.employeeName || employee?.employeeName || employee?.name || ''}`,
-            text: '這會做軟刪除，之後員工列表不再顯示。',
+            text: '確定是否刪除此員工？刪除後員工列表將不再顯示。',
             showCancelButton: true,
             confirmButtonText: '確認刪除',
             cancelButtonText: '取消',
@@ -744,7 +744,7 @@ export default function EmployeeForm({ mode = "add" }) {
         const result = await Swal.fire({
             icon: 'warning',
             title: `刪除帳號 ${accountDetail.accountName}`,
-            text: '這會做軟刪除，之後查詢列表不再顯示。',
+            text: '確定是否刪除此帳號？刪除後查詢列表將不再顯示。',
             showCancelButton: true,
             confirmButtonText: '確認刪除',
             cancelButtonText: '取消',

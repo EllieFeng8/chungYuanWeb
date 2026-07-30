@@ -189,6 +189,13 @@ app.get('/app-api/health', (_req, res) => {
   });
 });
 
+app.post('/app-api/login', (req, res) => {
+  return forwardJson(res, '/api/account/login', {
+    method: 'POST',
+    body: JSON.stringify(req.body),
+  });
+});
+
 app.get('/app-api/leave-types', (req, res) => {
   const rawCategory = req.query.Category ?? req.query.category ?? '';
   const category = String(rawCategory).trim();
@@ -366,7 +373,7 @@ app.post('/app-api/agent-request/:seqNo/reject', (req, res) => {
 
 app.get('/app-api/accounts', (req, res) => {
   const includeAll = req.query.includeAll === 'true' ? '?IncludeAll=true' : '';
-  return forwardJson(res, `/api/account/list${includeAll}`);
+  return forwardJson(res, `/api/account/list${includeAll}`這會做軟刪除);
 });
 
 app.get('/app-api/accounts/by-line/:lineUserId', (req, res) => {
@@ -377,12 +384,15 @@ app.get('/app-api/accounts/:seqNo', (req, res) => {
   return forwardJson(res, `/api/account/${req.params.seqNo}`);
 });
 
-app.post('/app-api/accounts', (req, res) => {
+function createAccount(req, res) {
   return forwardJson(res, '/api/account', {
     method: 'POST',
     body: JSON.stringify(req.body),
   });
-});
+}
+
+app.post('/app-api/account', createAccount);
+app.post('/app-api/accounts', createAccount);
 
 function revokeApiKey(req, res) {
   return forwardJson(res, `/api/api-key/${req.params.seqNo}/revoke`, {

@@ -350,7 +350,7 @@ export default function DepartmentManagement() {
     const result = await Swal.fire({
       icon: 'warning',
       title: `刪除部門 ${selectedDepartment.departmentName}`,
-      text: '這會做軟刪除，之後列表不再顯示。',
+      text: '確定是否刪除此部門？刪除後列表將不再顯示。',
       showCancelButton: true,
       confirmButtonText: '確認刪除',
       cancelButtonText: '取消',
