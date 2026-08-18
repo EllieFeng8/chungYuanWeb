@@ -18,6 +18,7 @@ import {
 } from '../lib/cfctApi';
 import {
   formatDateTime,
+  formatHours,
   getCurrentEmployeeContext,
   getApplicationDotColor,
   getApplicationPeriod,
@@ -25,9 +26,34 @@ import {
   getApplicationStatusStyles,
   getApplicationTypeName,
 } from '../lib/applicationUtils';
+import { getVisiblePageNumbers } from '../lib/pagination';
+
+const monthOptions = Array.from({ length: 12 }, (_, index) => {
+  const value = String(index + 1).padStart(2, '0');
+  return {
+    value,
+    label: `${index + 1} 月`,
+  };
+});
+
+function getApplicationYearMonth(item) {
+  const date = new Date(item.startTime || item.createdAt || item.submittedAt || '');
+  if (Number.isNaN(date.getTime())) {
+    return {
+      year: '',
+      month: '',
+    };
+  }
+
+  return {
+    year: String(date.getFullYear()),
+    month: String(date.getMonth() + 1).padStart(2, '0'),
+  };
+}
 
 function mapApplicationRecord(item) {
   const period = getApplicationPeriod(item);
+  const yearMonth = getApplicationYearMonth(item);
   return {
     id: item.seqNo,
     appNo: item.appNo || '',
@@ -36,6 +62,9 @@ function mapApplicationRecord(item) {
     typeName: getApplicationTypeName(item),
     submittedAt: formatDateTime(item.createdAt || item.submittedAt || item.startTime || ''),
     period,
+    year: yearMonth.year,
+    month: yearMonth.month,
+    hours: formatHours(item?.hours ?? item?.Hours),
     supplementRequired: item.status === 'need_supplement',
     dotColor: getApplicationDotColor(item.category),
   };
@@ -49,6 +78,8 @@ export default function Records() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
+  const [monthFilter, setMonthFilter] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -74,6 +105,12 @@ export default function Records() {
     );
   }, [records]);
 
+  const yearOptions = useMemo(() => {
+    return Array.from(
+      new Set(records.map((record) => record.year).filter(Boolean))
+    ).sort((a, b) => Number(b) - Number(a));
+  }, [records]);
+
   const filteredRecords = useMemo(() => {
     return records.filter((record) => {
       if (statusFilter !== 'all' && record.status !== statusFilter) {
@@ -84,26 +121,31 @@ export default function Records() {
         return false;
       }
 
+      if (yearFilter !== 'all' && record.year !== yearFilter) {
+        return false;
+      }
+
+      if (monthFilter !== 'all' && record.month !== monthFilter) {
+        return false;
+      }
+
       return true;
     });
-  }, [records, statusFilter, typeFilter]);
+  }, [records, statusFilter, typeFilter, yearFilter, monthFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, typeFilter, pageSize]);
+  }, [statusFilter, typeFilter, yearFilter, monthFilter, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
-  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
   const startIndex = (safeCurrentPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
   const paginatedRecords = filteredRecords.slice(startIndex, endIndex);
-  const visiblePageNumbers = useMemo(() => {
-    if (totalPages <= 5) {
-      return Array.from({ length: totalPages }, (_, index) => index + 1);
-    }
-
-    return [1, 2, 3, 'ellipsis', totalPages - 1, totalPages];
-  }, [totalPages]);
+  const visiblePageNumbers = useMemo(
+    () => getVisiblePageNumbers(totalPages, safeCurrentPage),
+    [totalPages, safeCurrentPage]
+  );
 
   async function loadRecords(showLoading = true) {
     if (showLoading) {
@@ -252,6 +294,36 @@ export default function Records() {
               ))}
             </select>
           </div>
+          <div className="space-y-2 flex-grow max-w-[180px]">
+            <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider block">年份</label>
+            <select
+              value={yearFilter}
+              onChange={(event) => setYearFilter(event.target.value)}
+              className="w-full h-10 border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+            >
+              <option value="all">所有年份</option>
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year} 年
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2 flex-grow max-w-[180px]">
+            <label className="text-xs font-bold text-on-surface-variant uppercase tracking-wider block">月份</label>
+            <select
+              value={monthFilter}
+              onChange={(event) => setMonthFilter(event.target.value)}
+              className="w-full h-10 border border-outline rounded-lg bg-white text-on-surface px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+            >
+              <option value="all">所有月份</option>
+              {monthOptions.map((month) => (
+                <option key={month.value} value={month.value}>
+                  {month.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             type="button"
             onClick={() => void loadRecords(false)}
@@ -264,13 +336,14 @@ export default function Records() {
 
         <div className="bg-white rounded-xl border border-outline-variant overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="min-w-[960px] w-full text-left border-collapse">
               <thead className="bg-surface-container-low border-b border-outline-variant">
                 <tr>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">單號</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請日期時間</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請類型</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">日期時間</th>
+                  <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">時數</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">狀態</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant text-right tracking-widest">操作</th>
                 </tr>
@@ -278,7 +351,7 @@ export default function Records() {
               <tbody className="divide-y divide-outline-variant">
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-on-surface-variant">
+                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-on-surface-variant">
                       申請紀錄載入中...
                     </td>
                   </tr>
@@ -306,6 +379,9 @@ export default function Records() {
                         <p className="text-sm text-on-surface leading-snug">{record.period.endDate} {record.period.endTime}</p>
                       </td>
                       <td className="px-6 py-5">
+                        <p className="text-sm font-medium text-on-surface">{record.hours}</p>
+                      </td>
+                      <td className="px-6 py-5">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getApplicationStatusStyles(record.status)}`}>
                           {record.statusLabel}
                         </span>
@@ -325,7 +401,7 @@ export default function Records() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-on-surface-variant">
+                    <td colSpan={7} className="px-6 py-12 text-center text-sm text-on-surface-variant">
                       目前沒有符合條件的申請紀錄。
                     </td>
                   </tr>
@@ -357,13 +433,13 @@ export default function Records() {
               <button
                 type="button"
                 disabled={safeCurrentPage === 1}
-                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
                 className="w-9 h-9 border border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-30"
               >
                 <ChevronLeft size={18} />
               </button>
               {visiblePageNumbers.map((page) => (
-                page === 'ellipsis' ? (
+                typeof page === 'string' ? (
                   <span
                     key={page}
                     className="w-9 h-9 flex items-center justify-center text-on-surface-variant text-sm font-bold"
@@ -386,7 +462,7 @@ export default function Records() {
               <button
                 type="button"
                 disabled={safeCurrentPage === totalPages}
-                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
                 className="w-9 h-9 border border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-30"
               >
                 <ChevronRight size={18} />

@@ -188,10 +188,13 @@ export default function ApprovalDetail() {
                 void loadAttachments(nextApplication?.seqNo || applicationSeqNo);
 
                 if (hasBeenReviewed(nextApplication?.status)) {
+                    const isCancelled = nextApplication?.status === 'cancelled';
                     void Swal.fire({
                         icon: 'info',
-                        title: '已審核過',
-                        text: '此申請已審核過，請返回上一頁重新確認狀態。',
+                        title: isCancelled ? '已撤銷' : '已審核過',
+                        text: isCancelled
+                            ? '此申請已撤銷，請返回上一頁重新確認狀態。'
+                            : '此申請已審核過，請返回上一頁重新確認狀態。',
                     });
                 }
             } catch (error) {

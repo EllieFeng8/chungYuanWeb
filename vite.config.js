@@ -13,9 +13,28 @@ export default defineConfig(({mode}) => {
       return 'localhost';
     }
   })();
+  const allowedHosts = Array.from(new Set([
+    appHost,
+    'doukeyi.aeyeot.co',
+    'localhost',
+    '127.0.0.1',
+  ]));
   const isHmrDisabled = env.DISABLE_HMR === 'true';
   const devPort = Number(env.PORT || 3000);
   const previewPort = Number(env.PREVIEW_PORT || 4173);
+  const hmrClientPort = env.HMR_CLIENT_PORT ? Number(env.HMR_CLIENT_PORT) : undefined;
+  const hmrPath = env.HMR_PATH || '';
+  const hmrConfig =
+    isHmrDisabled
+      ? false
+      : env.HMR_HOST || env.HMR_PROTOCOL || hmrClientPort || hmrPath
+        ? {
+            ...(env.HMR_HOST ? {host: env.HMR_HOST} : {}),
+            ...(env.HMR_PROTOCOL ? {protocol: env.HMR_PROTOCOL} : {}),
+            ...(hmrClientPort ? {clientPort: hmrClientPort} : {}),
+            ...(hmrPath ? {path: hmrPath} : {}),
+          }
+        : true;
 
   return {
     plugins: [react(), tailwindcss()],
@@ -32,7 +51,7 @@ export default defineConfig(({mode}) => {
     server: {
       host: '0.0.0.0',
       port: devPort,
-      allowedHosts: [appHost],
+      allowedHosts,
       origin: appUrl,
       proxy: {
         '/app-api': {
@@ -40,19 +59,13 @@ export default defineConfig(({mode}) => {
           changeOrigin: true,
         },
       },
-      hmr: isHmrDisabled
-        ? false
-        : {
-            host: appHost,
-            protocol: appUrl.startsWith('https://') ? 'wss' : 'ws',
-            clientPort: appUrl.startsWith('https://') ? 443 : 80,
-          },
+      hmr: hmrConfig,
       watch: isHmrDisabled ? null : {},
     },
     preview: {
       host: '0.0.0.0',
       port: previewPort,
-      allowedHosts: [appHost],
+      allowedHosts,
     },
   };
 });

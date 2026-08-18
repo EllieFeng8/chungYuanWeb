@@ -155,6 +155,46 @@ export function formatTimeOnly(value) {
   return `${hours}:${minutes}`;
 }
 
+export function calculateCappedDailyHours(startTime, endTime, dailyLimitHours = 8) {
+  if (!startTime || !endTime) {
+    return null;
+  }
+
+  const startAt = new Date(startTime);
+  const endAt = new Date(endTime);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()) || endAt <= startAt) {
+    return null;
+  }
+
+  let totalHours = 0;
+  let cursor = new Date(startAt);
+
+  while (cursor < endAt) {
+    const nextDay = new Date(cursor);
+    nextDay.setHours(24, 0, 0, 0);
+
+    const segmentEnd = nextDay < endAt ? nextDay : endAt;
+    const segmentHours = (segmentEnd.getTime() - cursor.getTime()) / (1000 * 60 * 60);
+    totalHours += Math.min(segmentHours, dailyLimitHours);
+    cursor = segmentEnd;
+  }
+
+  return Number(totalHours.toFixed(2));
+}
+
+export function formatHours(value) {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+
+  const hours = Number(value);
+  if (Number.isNaN(hours)) {
+    return '-';
+  }
+
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(2)} 小時`;
+}
+
 export function getApplicationStatusLabel(status) {
   switch (status) {
     case 'pending':

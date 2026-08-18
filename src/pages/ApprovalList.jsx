@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import JSZip from 'jszip';
 import { motion } from 'motion/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import ApprovalRequestList from '../components/ApprovalRequestList';
@@ -21,9 +21,11 @@ import {
     getDeptApprovalList,
     getHrApplicationExportUrl,
     getHrApplicationList,
+    getLeaveTypeList,
 } from '../lib/cfctApi';
 import {
     formatDateTime,
+    formatHours,
     getCurrentEmployeeContext,
     getApplicationDotColor,
     getApplicationPeriod,
@@ -31,8 +33,10 @@ import {
     getApplicationStatusStyles,
     getApplicationTypeName,
 } from '../lib/applicationUtils';
+import { getVisiblePageNumbers } from '../lib/pagination';
 
 const STATUS_ALL = 'all';
+const APPROVAL_LIST_STATE_STORAGE_KEY = 'approvalListState';
 
 const STATUS_QUERY_MAP = {
     [STATUS_ALL]: '',
@@ -40,6 +44,29 @@ const STATUS_QUERY_MAP = {
     '已核准': 'approved',
     '已駁回': 'rejected',
 };
+
+function getStoredApprovalListState() {
+    try {
+        const rawState = window.sessionStorage.getItem(APPROVAL_LIST_STATE_STORAGE_KEY);
+        if (!rawState) {
+            return {};
+        }
+
+        const parsedState = JSON.parse(rawState);
+        return parsedState && typeof parsedState === 'object' ? parsedState : {};
+    } catch {
+        return {};
+    }
+}
+
+function getStoredStringValue(state, key, fallback) {
+    return typeof state[key] === 'string' ? state[key] : fallback;
+}
+
+function getStoredNumberValue(state, key, fallback) {
+    const value = Number(state[key]);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+}
 
 function getAgentStatusLabel(status, hasAgent) {
     switch (status) {
@@ -115,11 +142,6 @@ function getDurationText(application) {
     return `${period.startDate} ${period.startTime} - ${period.endDate} ${period.endTime}`;
 }
 
-function isOvertimeApplication(typeName) {
-    const normalizedTypeName = String(typeName || '').trim();
-    return normalizedTypeName.includes('加班') || normalizedTypeName.includes('車趟津貼');
-}
-
 function getApprovalRequestDate(item) {
     const rawDate = item?.submittedAt || item?.createdAt || item?.createTime || item?.applyTime || item?.requestTime;
     if (!rawDate) {
@@ -132,6 +154,31 @@ function getApprovalRequestDate(item) {
     }
 
     return date;
+}
+
+function getTypeCode(option) {
+    return String(option?.typeCode ?? option?.TypeCode ?? option?.leaveTypeCode ?? '').trim();
+}
+
+function getTypeName(option) {
+    return String(option?.typeName ?? option?.TypeName ?? option?.leaveTypeName ?? '').trim();
+}
+
+function getApplicationTypeCode(application) {
+    return String(application?.leaveTypeCode ?? application?.typeCode ?? application?.TypeCode ?? '').trim();
+}
+
+function buildTypeNameMap(...typeLists) {
+    return new Map(
+        typeLists
+            .flatMap((typeList) => (Array.isArray(typeList) ? typeList : []))
+            .map((option) => {
+                const typeCode = getTypeCode(option);
+                const typeName = getTypeName(option);
+                return typeCode && typeName ? [typeCode, typeName] : null;
+            })
+            .filter(Boolean)
+    );
 }
 
 function resolveCurrentApproverStepState(applicationDetail, currentEmployee, accountDetail) {
@@ -148,7 +195,7 @@ function resolveCurrentApproverStepState(applicationDetail, currentEmployee, acc
         .map((value) => String(value || '').trim().toLowerCase())
         .filter(Boolean);
 
-    const matchedStep = steps.find((step) => {
+    const matchedStepIndex = steps.findIndex((step) => {
         const approverName = String(step?.approverName || '').trim().toLowerCase();
         if (currentApproverName && approverName === currentApproverName) {
             return true;
@@ -156,12 +203,27 @@ function resolveCurrentApproverStepState(applicationDetail, currentEmployee, acc
 
         return fallbackApproverNames.includes(approverName);
     });
+    const matchedStep = matchedStepIndex >= 0 ? steps[matchedStepIndex] : null;
+    const previousStep = matchedStepIndex > 0 ? steps[matchedStepIndex - 1] : null;
+
+    if (
+        accountDetail?.role === 'manager'
+        && applicationDetail?.status === 'pending'
+        && matchedStep?.stepState === 'pending'
+        && previousStep?.stepState === 'pending'
+    ) {
+        return '待其他主管簽核';
+    }
 
     return String(matchedStep?.stepState || '').trim();
 }
 
-function normalizeApprovalItem(item, statusOverride = '') {
-    const normalizedStatus = String(statusOverride || item?.status || '').trim();
+function normalizeApprovalItem(item, statusOverride = '', typeNameMap = new Map()) {
+    const applicationStatus = String(item?.status || '').trim();
+    const shouldUseApplicationStatus = ['rejected', 'cancelled', 'need_supplement'].includes(applicationStatus);
+    const normalizedStatus = shouldUseApplicationStatus
+        ? applicationStatus
+        : String(statusOverride || applicationStatus).trim();
     const statusLabel = getApplicationStatusLabel(normalizedStatus);
     const agentNames = [
         item?.agentName || item?.agentEmpName || item?.agentEmpNo || item?.proxyName || '',
@@ -171,14 +233,18 @@ function normalizeApprovalItem(item, statusOverride = '') {
         .filter(Boolean);
     const hasAgent = agentNames.length > 0;
     const attachmentCount = Number(item?.attachmentCount ?? item?.AttachmentCount ?? 0);
+    const typeCode = getApplicationTypeCode(item);
+    const typeName = typeNameMap.get(typeCode) || getApplicationTypeName(item);
     return {
         seqNo: item?.seqNo || item?.applicationSeqNo || item?.id || '',
         department: item?.departmentName || item?.deptName || item?.department || '-',
         applicant: item?.applicantName || item?.employeeName || item?.applicantEmpName || item?.applicantEmpNo || '-',
         requestTime: formatDateTime(item?.submittedAt || item?.createdAt || item?.createTime || item?.applyTime || item?.requestTime) || '-',
-        type: getApplicationTypeName(item),
+        type: typeName,
+        typeCode,
         typeColor: getTypeColor(item),
         duration: getDurationText(item),
+        hours: formatHours(item?.hours ?? item?.Hours),
         agentNames,
         agentName: agentNames.length ? agentNames.join(' / ') : '-',
         agentStatus: getAgentStatusLabel(item?.agentConfirmState || item?.agentStatus, hasAgent),
@@ -234,16 +300,20 @@ async function fetchBlobWithFileName(url, fallbackFileName) {
 
 export default function ApprovalList({ forceShowAttachmentColumn = false }) {
     const navigate = useNavigate();
-    const [departmentFilter, setDepartmentFilter] = useState('all');
-    const [statusFilter, setStatusFilter] = useState(STATUS_ALL);
-    const [requestTypeFilter, setRequestTypeFilter] = useState('all');
-    const [searchInput, setSearchInput] = useState('');
-    const [searchKeyword, setSearchKeyword] = useState('');
-    const [dateFrom, setDateFrom] = useState('');
-    const [dateTo, setDateTo] = useState('');
-    const [pageSize, setPageSize] = useState(10);
-    const [currentPage, setCurrentPage] = useState(1);
+    const storedListStateRef = useRef(getStoredApprovalListState());
+    const didMountFilterResetRef = useRef(false);
+    const [departmentFilter, setDepartmentFilter] = useState(() => getStoredStringValue(storedListStateRef.current, 'departmentFilter', 'all'));
+    const [statusFilter, setStatusFilter] = useState(() => getStoredStringValue(storedListStateRef.current, 'statusFilter', STATUS_ALL));
+    const [requestTypeFilter, setRequestTypeFilter] = useState(() => getStoredStringValue(storedListStateRef.current, 'requestTypeFilter', 'all'));
+    const [searchInput, setSearchInput] = useState(() => getStoredStringValue(storedListStateRef.current, 'searchInput', ''));
+    const [searchKeyword, setSearchKeyword] = useState(() => getStoredStringValue(storedListStateRef.current, 'searchKeyword', ''));
+    const [dateFrom, setDateFrom] = useState(() => getStoredStringValue(storedListStateRef.current, 'dateFrom', ''));
+    const [dateTo, setDateTo] = useState(() => getStoredStringValue(storedListStateRef.current, 'dateTo', ''));
+    const [pageSize, setPageSize] = useState(() => getStoredNumberValue(storedListStateRef.current, 'pageSize', 10));
+    const [currentPage, setCurrentPage] = useState(() => getStoredNumberValue(storedListStateRef.current, 'currentPage', 1));
     const [approvalList, setApprovalList] = useState([]);
+    const [leaveTypeCodes, setLeaveTypeCodes] = useState([]);
+    const [overtimeTypeCodes, setOvertimeTypeCodes] = useState([]);
     const [departmentOptions, setDepartmentOptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
@@ -270,11 +340,15 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                     });
                 }
                 console.log('[ApprovalList] GET /app-api/departments');
-                const [approvalResponse, departmentResponse] = await Promise.all([
+                console.log('[ApprovalList] GET /app-api/leave-types?category=overtime');
+                console.log('[ApprovalList] GET /app-api/leave-types?category=leave');
+                const [approvalResponse, departmentResponse, overtimeTypeResponse, leaveTypeResponse] = await Promise.all([
                     isAdmin
                         ? getHrApplicationList()
                         : getDeptApprovalList(currentEmployee.employeeNo, ''),
                     getDepartmentList(),
+                    getLeaveTypeList('overtime'),
+                    getLeaveTypeList('leave'),
                 ]);
 
                 if (!approvalResponse?.success) {
@@ -283,6 +357,9 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                 if (!departmentResponse?.success) {
                     throw new Error(departmentResponse?.error || '部門列表讀取失敗');
                 }
+                if (!overtimeTypeResponse?.success || !leaveTypeResponse?.success) {
+                    throw new Error('申請類型讀取失敗');
+                }
 
                 if (!isMounted) {
                     return;
@@ -290,19 +367,22 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
 
                 const records = Array.isArray(approvalResponse.data) ? approvalResponse.data : [];
                 const departments = Array.isArray(departmentResponse.data) ? departmentResponse.data : [];
+                const overtimeTypes = Array.isArray(overtimeTypeResponse.data) ? overtimeTypeResponse.data : [];
+                const leaveTypes = Array.isArray(leaveTypeResponse.data) ? leaveTypeResponse.data : [];
+                const typeNameMap = buildTypeNameMap(overtimeTypes, leaveTypes);
                 const normalizedRecords = isAdmin
-                    ? records.map((record) => normalizeApprovalItem(record))
+                    ? records.map((record) => normalizeApprovalItem(record, '', typeNameMap))
                     : await Promise.all(
                         records.map(async (record) => {
                             const seqNo = record?.seqNo || record?.applicationSeqNo || record?.id;
                             if (!seqNo) {
-                                return normalizeApprovalItem(record);
+                                return normalizeApprovalItem(record, '', typeNameMap);
                             }
 
                             try {
                                 const detailResponse = await getApplicationDetail(seqNo);
                                 if (!detailResponse?.success) {
-                                    return normalizeApprovalItem(record);
+                                    return normalizeApprovalItem(record, '', typeNameMap);
                                 }
 
                                 const currentStepState = resolveCurrentApproverStepState(
@@ -311,18 +391,27 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                                     accountDetail
                                 );
 
-                                return normalizeApprovalItem(record, currentStepState);
+                                return normalizeApprovalItem(
+                                    {
+                                        ...record,
+                                        status: detailResponse.data?.status || record?.status,
+                                    },
+                                    currentStepState,
+                                    typeNameMap
+                                );
                             } catch (detailError) {
                                 console.error('[ApprovalList] application detail read failed', {
                                     seqNo,
                                     error: detailError instanceof Error ? detailError.message : detailError,
                                 });
-                                return normalizeApprovalItem(record);
+                                return normalizeApprovalItem(record, '', typeNameMap);
                             }
                         })
                     );
 
                 setApprovalList(normalizedRecords);
+                setOvertimeTypeCodes(overtimeTypes.map((option) => getTypeCode(option)).filter(Boolean));
+                setLeaveTypeCodes(leaveTypes.map((option) => getTypeCode(option)).filter(Boolean));
                 setDepartmentOptions(
                     departments
                         .map((department) => {
@@ -345,6 +434,8 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                 }
 
                 setApprovalList([]);
+                setOvertimeTypeCodes([]);
+                setLeaveTypeCodes([]);
                 setDepartmentOptions([]);
                 void Swal.fire({
                     icon: 'error',
@@ -364,6 +455,9 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
             isMounted = false;
         };
     }, []);
+
+    const overtimeTypeCodeSet = useMemo(() => new Set(overtimeTypeCodes), [overtimeTypeCodes]);
+    const leaveTypeCodeSet = useMemo(() => new Set(leaveTypeCodes), [leaveTypeCodes]);
 
     const filteredApprovalList = useMemo(() => (
         approvalList.filter((item) => {
@@ -415,25 +509,67 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                 return false;
             }
 
-            if (requestTypeFilter === 'overtime' && !isOvertimeApplication(item.type)) {
+            if (requestTypeFilter === 'overtime' && !overtimeTypeCodeSet.has(item.typeCode)) {
                 return false;
             }
 
-            if (requestTypeFilter === 'leave' && isOvertimeApplication(item.type)) {
+            if (requestTypeFilter === 'leave' && !leaveTypeCodeSet.has(item.typeCode)) {
                 return false;
             }
 
             return true;
         })
-    ), [approvalList, dateFrom, dateTo, departmentFilter, requestTypeFilter, searchKeyword, statusFilter]);
+    ), [
+        approvalList,
+        dateFrom,
+        dateTo,
+        departmentFilter,
+        leaveTypeCodeSet,
+        overtimeTypeCodeSet,
+        requestTypeFilter,
+        searchKeyword,
+        statusFilter,
+    ]);
 
     const selectedDepartmentOption = useMemo(() => (
         departmentOptions.find((department) => department.name === departmentFilter) || null
     ), [departmentFilter, departmentOptions]);
 
     useEffect(() => {
+        if (!didMountFilterResetRef.current) {
+            didMountFilterResetRef.current = true;
+            return;
+        }
+
         setCurrentPage(1);
     }, [departmentFilter, statusFilter, requestTypeFilter, searchKeyword, dateFrom, dateTo, pageSize]);
+
+    useEffect(() => {
+        window.sessionStorage.setItem(
+            APPROVAL_LIST_STATE_STORAGE_KEY,
+            JSON.stringify({
+                departmentFilter,
+                statusFilter,
+                requestTypeFilter,
+                searchInput,
+                searchKeyword,
+                dateFrom,
+                dateTo,
+                pageSize,
+                currentPage,
+            })
+        );
+    }, [
+        currentPage,
+        dateFrom,
+        dateTo,
+        departmentFilter,
+        pageSize,
+        requestTypeFilter,
+        searchInput,
+        searchKeyword,
+        statusFilter,
+    ]);
 
     const handleSearch = () => {
         setSearchKeyword(searchInput.trim());
@@ -450,7 +586,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         },
         {
             label: '加班申請',
-            count: approvalList.filter((item) => isOvertimeApplication(item.type)).length,
+            count: approvalList.filter((item) => overtimeTypeCodeSet.has(item.typeCode)).length,
             unit: '項申請',
             color: 'tertiary',
             icon: Clock,
@@ -458,27 +594,24 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         },
         {
             label: '請假申請',
-            count: approvalList.filter((item) => !isOvertimeApplication(item.type)).length,
+            count: approvalList.filter((item) => leaveTypeCodeSet.has(item.typeCode)).length,
             unit: '項申請',
             color: 'blue-500',
             icon: CalendarDays,
             value: 'leave',
         },
-    ]), [approvalList]);
+    ]), [approvalList, leaveTypeCodeSet, overtimeTypeCodeSet]);
 
     const totalPages = Math.max(1, Math.ceil(filteredApprovalList.length / pageSize));
-    const safeCurrentPage = Math.min(currentPage, totalPages);
+    const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
     const startIndex = (safeCurrentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const paginatedApprovalList = filteredApprovalList.slice(startIndex, endIndex);
     const showAttachmentColumn = isAdmin || forceShowAttachmentColumn;
-    const visiblePageNumbers = useMemo(() => {
-        if (totalPages <= 5) {
-            return Array.from({ length: totalPages }, (_, index) => index + 1);
-        }
-
-        return [1, 2, 3, 'ellipsis', totalPages - 1, totalPages];
-    }, [totalPages]);
+    const visiblePageNumbers = useMemo(
+        () => getVisiblePageNumbers(totalPages, safeCurrentPage),
+        [totalPages, safeCurrentPage]
+    );
 
     const handleDownload = async () => {
         const category = requestTypeFilter === 'all' ? '' : requestTypeFilter;
@@ -573,6 +706,9 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         const statusValue = isAdmin ? item.raw?.status : (item.currentApprovalStatus || item.raw?.status);
         if (statusValue === 'approved') {
             return 'bg-green-50 text-green-700 border-green-200';
+        }
+        if (statusValue === '待其他主管簽核') {
+            return 'bg-amber-50 text-amber-700 border-amber-200';
         }
 
         return getApplicationStatusStyles(statusValue);
@@ -799,13 +935,13 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                         <button
                             type="button"
                             disabled={safeCurrentPage === 1}
-                            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                            onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
                             className="w-9 h-9 border border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant transition-colors hover:bg-surface-container disabled:opacity-30"
                         >
                             <ChevronLeft size={18} />
                         </button>
                         {visiblePageNumbers.map((page) => (
-                            page === 'ellipsis' ? (
+                            typeof page === 'string' ? (
                                 <span
                                     key={page}
                                     className="w-9 h-9 flex items-center justify-center text-on-surface-variant text-sm font-bold"
@@ -828,7 +964,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                         <button
                             type="button"
                             disabled={safeCurrentPage === totalPages}
-                            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                            onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
                             className="w-9 h-9 border border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-30"
                         >
                             <ChevronRight size={18} />

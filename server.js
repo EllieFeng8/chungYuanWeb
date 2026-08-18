@@ -373,7 +373,7 @@ app.post('/app-api/agent-request/:seqNo/reject', (req, res) => {
 
 app.get('/app-api/accounts', (req, res) => {
   const includeAll = req.query.includeAll === 'true' ? '?IncludeAll=true' : '';
-  return forwardJson(res, `/api/account/list${includeAll}`這會做軟刪除);
+  return forwardJson(res, `/api/account/list${includeAll}`);
 });
 
 app.get('/app-api/accounts/by-line/:lineUserId', (req, res) => {

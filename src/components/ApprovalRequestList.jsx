@@ -7,7 +7,7 @@ export default function ApprovalRequestList({
   getAgentStatusClassName,
   getApplicationStatusClassName,
 }) {
-  const emptyColSpan = showAttachmentColumn ? 10 : 9;
+  const emptyColSpan = showAttachmentColumn ? 11 : 10;
 
   function renderAgentNames(item) {
     const names = Array.isArray(item.agentNames) && item.agentNames.length
@@ -48,6 +48,7 @@ export default function ApprovalRequestList({
                 <InfoField label="申請類型" value={item.type} dotColor={item.typeColor} />
                 <InfoField label="申請日期時間" value={item.requestTime} />
                 <InfoField label="日期時間" value={item.duration} />
+                <InfoField label="時數" value={item.hours} />
                 <div className="space-y-1">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">代理人名稱</div>
                   <div className="text-sm text-on-surface">
@@ -78,21 +79,22 @@ export default function ApprovalRequestList({
 
       <div className="hidden lg:block">
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed text-left border-collapse">
+          <table className="min-w-[1500px] w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-low border-b border-outline-variant">
-                <th className="w-[11%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">部門</th>
-                <th className="w-[12%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">員工資訊</th>
-                <th className="w-[13%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請日期時間</th>
-                <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">申請類型</th>
-                <th className="w-[15%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">日期時間</th>
-                <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人</th>
-                <th className="w-[11%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">代理人狀態</th>
-                {showAttachmentColumn ? <th className="w-[6%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">附件</th> : null}
-                <th className="w-[8%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">
+                <th className="w-[140px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">部門</th>
+                <th className="w-[150px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">員工資訊</th>
+                <th className="w-[150px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">申請日期時間</th>
+                <th className="w-[140px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">申請類型</th>
+                <th className="w-[200px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">日期時間</th>
+                <th className="w-[130px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">時數</th>
+                <th className="w-[150px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">
                   {isManager ? '您的審核狀態' : '狀態'}
                 </th>
-                <th className="w-[10%] px-4 py-4 text-xs font-bold text-secondary tracking-wider">詳情</th>
+                <th className="w-[140px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">代理人</th>
+                <th className="w-[150px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">代理人狀態</th>
+                {showAttachmentColumn ? <th className="w-[90px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">附件</th> : null}
+                <th className="w-[170px] px-4 py-4 text-xs font-bold text-secondary tracking-wider whitespace-nowrap">詳情</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant">
@@ -120,12 +122,18 @@ export default function ApprovalRequestList({
                         <span className="text-sm break-words">{item.type}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-xs text-on-surface-variant leading-relaxed">
+                    <td className="px-3 py-4 text-xs text-on-surface-variant leading-relaxed">
                       {String(item.duration || '-').split(' - ').map((part, i) => (
                         <div key={i}>{part}</div>
                       ))}
                     </td>
-                    <td className="px-4 py-4 text-sm break-words">
+                    <td className="px-3 py-4 text-sm font-medium text-on-surface">{item.hours || '-'}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex whitespace-nowrap items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${getApplicationStatusClassName(item)}`}>
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-4 text-sm break-words">
                       {renderAgentNames(item)}
                     </td>
                     <td className="px-4 py-4">
@@ -136,11 +144,6 @@ export default function ApprovalRequestList({
                     {showAttachmentColumn ? (
                       <td className="px-4 py-4 text-sm">{item.attachmentStatus}</td>
                     ) : null}
-                    <td className="px-4 py-4">
-                      <span className={`inline-flex whitespace-nowrap items-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${getApplicationStatusClassName(item)}`}>
-                        {item.status}
-                      </span>
-                    </td>
                     <td className="px-4 py-4">
                       <p className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-secondary" title={item.detail}>
                         {item.detail}
