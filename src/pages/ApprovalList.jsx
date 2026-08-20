@@ -577,8 +577,8 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
 
     const statsOverview = useMemo(() => ([
         {
-            label: '審核總數',
-            count: approvalList.length,
+            label: '待審核',
+            count: approvalList.filter((item) => item.currentApprovalStatus === 'pending').length,
             unit: '項申請',
             color: 'primary',
             icon: Clock,
@@ -586,21 +586,17 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         },
         {
             label: '加班申請',
-            count: approvalList.filter((item) => overtimeTypeCodeSet.has(item.typeCode)).length,
-            unit: '項申請',
             color: 'tertiary',
             icon: Clock,
             value: 'overtime',
         },
         {
             label: '請假申請',
-            count: approvalList.filter((item) => leaveTypeCodeSet.has(item.typeCode)).length,
-            unit: '項申請',
             color: 'blue-500',
             icon: CalendarDays,
             value: 'leave',
         },
-    ]), [approvalList, leaveTypeCodeSet, overtimeTypeCodeSet]);
+    ]), [approvalList]);
 
     const totalPages = Math.max(1, Math.ceil(filteredApprovalList.length / pageSize));
     const safeCurrentPage = Math.min(Math.max(currentPage, 1), totalPages);
@@ -759,19 +755,24 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                             <stat.icon size={28} />
                         </div>
                         <div>
-                            <p className={`text-xs font-medium ${
-                                requestTypeFilter === stat.value ? 'text-on-surface-variant' : 'text-secondary'
-                            }`}>
+                            <p className={stat.count === undefined
+                                ? 'text-xl font-bold text-black'
+                                : `text-xs font-medium ${
+                                    requestTypeFilter === stat.value ? 'text-on-surface-variant' : 'text-secondary'
+                                }`
+                            }>
                                 {stat.label}
                             </p>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-bold text-on-surface">{stat.count}</span>
-                                <span className={`text-xs ${
-                                    requestTypeFilter === stat.value ? 'text-on-surface-variant' : 'text-secondary'
-                                }`}>
-                                    {stat.unit}
-                                </span>
-                            </div>
+                            {stat.count !== undefined ? (
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-3xl font-bold text-on-surface">{stat.count}</span>
+                                    <span className={`text-xs ${
+                                        requestTypeFilter === stat.value ? 'text-on-surface-variant' : 'text-secondary'
+                                    }`}>
+                                        {stat.unit}
+                                    </span>
+                                </div>
+                            ) : null}
                         </div>
                     </motion.button>
                 ))}

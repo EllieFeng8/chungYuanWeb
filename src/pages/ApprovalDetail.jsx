@@ -9,6 +9,7 @@ import {
     Info,
     ExternalLink,
     CheckCircle2,
+    Clock,
     AlertCircle,
     X
 } from 'lucide-react';
@@ -30,6 +31,7 @@ import {
 } from '../lib/cfctApi';
 import {
     formatDateTime,
+    formatHours,
     getApplicationStatusLabel,
     getApplicationStatusStyles,
     getCurrentEmployeeContext,
@@ -586,7 +588,7 @@ export default function ApprovalDetail() {
                         onClick={() => navigate(-1)}
                         className="w-10 h-10 flex items-center justify-center border border-outline-variant rounded-lg bg-surface-container-lowest hover:bg-surface-container-low transition-all active:scale-95"
                     >
-                        <ArrowLeft size={20} />
+                        <ArrowLeft size={20} className="text-secondary" />
                     </button>
                     <h2 className="text-2xl font-semibold text-on-surface">審核</h2>
                 </div>
@@ -614,28 +616,28 @@ export default function ApprovalDetail() {
 
             <section className="card">
                 <div className="px-6 py-4 bg-surface-container-low border-b border-outline-variant flex items-center gap-3">
-                    <ClipboardList size={20} className="text-primary fill-primary/20" />
+                    <ClipboardList size={20} className="text-secondary" />
                     <h3 className="text-lg font-semibold text-on-surface">申請詳情</h3>
                 </div>
                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
                     <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">單號</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg text-secondary">
-                            <Lock size={16} />
+                            <Lock size={16} className="text-secondary" />
                             <span className="text-sm">{application.appNo || '-'}</span>
                         </div>
                     </div>
                     <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">員工姓名</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg text-secondary">
-                            <Lock size={16} />
+                            <Lock size={16} className="text-secondary" />
                             <span className="text-sm">{applicantName}</span>
                         </div>
                     </div>
                     <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">假別類型</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                            <CheckCircle2 size={16} className="text-primary fill-primary/10" />
+                            <CheckCircle2 size={16} className="text-secondary" />
                             <span className="text-sm">{applicationTypeName}</span>
                         </div>
                     </div>
@@ -643,14 +645,14 @@ export default function ApprovalDetail() {
                     <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">部門</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                            <Lock size={16} className="text-outline-variant" />
+                            <Lock size={16} className="text-secondary" />
                             <span className="text-sm">{applicantDepartmentName}</span>
                         </div>
                     </div>
                     <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">部門主管</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                            <Lock size={16} className="text-outline-variant" />
+                            <Lock size={16} className="text-secondary" />
                             <span className="text-sm">{applicantManagerName}</span>
                         </div>
                     </div>
@@ -659,29 +661,36 @@ export default function ApprovalDetail() {
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-on-surface-variant">代理人 1</label>
                                 <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                                    <Lock size={16} className="text-outline-variant" />
+                                    <Lock size={16} className="text-secondary" />
                                     <span className="text-sm">{agentName}</span>
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-on-surface-variant">代理人 2</label>
                                 <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                                    <Lock size={16} className="text-outline-variant" />
+                                    <Lock size={16} className="text-secondary" />
                                     <span className="text-sm">{agent2Name}</span>
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-on-surface-variant">代理人 1 狀態</label>
                                 <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                                    <CheckCircle2 size={16} className="text-primary fill-primary/10" />
+                                    <CheckCircle2 size={16} className="text-secondary" />
                                     <span className="text-sm">{agent1StatusLabel}</span>
                                 </div>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-on-surface-variant">代理人 2 狀態</label>
                                 <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                                    <CheckCircle2 size={16} className="text-primary fill-primary/10" />
+                                    <CheckCircle2 size={16} className="text-secondary" />
                                     <span className="text-sm">{agent2StatusLabel}</span>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium text-on-surface-variant">時數</label>
+                                <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
+                                    <Clock size={16} className="text-secondary" />
+                                    <span className="text-sm">{formatHours(application?.hours ?? application?.Hours)}</span>
                                 </div>
                             </div>
                         </>
@@ -689,14 +698,14 @@ export default function ApprovalDetail() {
                     <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">開始日期</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                            <CalendarDays size={16} className="text-outline-variant" />
+                            <CalendarDays size={16} className="text-secondary" />
                             <span className="text-sm">{period.startDate} {period.startTime}</span>
                         </div>
                     </div>
                     <div className="space-y-2">
                         <label className="text-xs font-medium text-on-surface-variant">結束日期</label>
                         <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                            <CalendarDays size={16} className="text-outline-variant" />
+                            <CalendarDays size={16} className="text-secondary" />
                             <span className="text-sm">{period.endDate} {period.endTime}</span>
                         </div>
                     </div>
@@ -704,7 +713,7 @@ export default function ApprovalDetail() {
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-on-surface-variant">加班時數</label>
                             <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                                <CheckCircle2 size={16} className="text-primary fill-primary/10" />
+                                <Clock size={16} className="text-secondary" />
                                 <span className="text-sm">{overtimeHours ?? '-'} {overtimeHours !== null ? '小時' : ''}</span>
                             </div>
                         </div>
@@ -713,7 +722,7 @@ export default function ApprovalDetail() {
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-on-surface-variant">金額</label>
                             <div className="h-12 px-4 flex items-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-lg">
-                                <CheckCircle2 size={16} className="text-primary fill-primary/10" />
+                                <CheckCircle2 size={16} className="text-secondary" />
                                 <span className="text-sm">{travelAllowanceAmount ?? '-'} {travelAllowanceAmount !== null ? '元' : ''}</span>
                             </div>
                         </div>
@@ -730,13 +739,13 @@ export default function ApprovalDetail() {
             <section className="card p-8">
                 <div className="bg-surface-container-low rounded-xl p-5 flex items-start gap-4 border border-outline-variant/30">
                     <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary shrink-0">
-                        <Info size={22} />
+                        <Info size={22} className="text-secondary" />
                     </div>
                     <div className="space-y-1">
                         <div className="text-sm font-bold text-on-surface">審核流程</div>
                         <div className="text-[13px] text-on-surface-variant flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-primary">已申請</span>
-                            <ChevronRight size={16} />
+                            <ChevronRight size={16} className="text-secondary" />
                             <span className="font-semibold">{workflowLabel}</span>
                             <span className={`px-2 py-0.5 text-[10px] font-black uppercase rounded border ${getApplicationStatusStyles(application.status)}`}>
                                 {statusLabel}
@@ -749,7 +758,7 @@ export default function ApprovalDetail() {
             {Array.isArray(application.steps) && application.steps.length ? (
                 <section className="card p-8 space-y-6">
                     <div className="flex items-center gap-2">
-                        <AlertCircle className="text-primary" size={20} />
+                        <AlertCircle className="text-secondary" size={20} />
                         <h2 className="text-lg font-bold text-primary">簽核時間軸</h2>
                     </div>
 
@@ -823,7 +832,7 @@ export default function ApprovalDetail() {
                                         rel="noreferrer"
                                         className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-outline px-3 py-2 text-sm font-bold text-secondary transition-colors hover:bg-surface-container"
                                     >
-                                        <ExternalLink size={16} />
+                                        <ExternalLink size={16} className="text-secondary" />
                                         下載
                                     </a>
                                 </div>
@@ -837,7 +846,7 @@ export default function ApprovalDetail() {
                                 </div>
                                 <span className="text-sm text-secondary">無附加檔案</span>
                             </div>
-                            <ExternalLink size={20} className="text-outline-variant" />
+                            <ExternalLink size={20} className="text-secondary" />
                         </div>
                     )}
                 </div>
@@ -860,7 +869,7 @@ export default function ApprovalDetail() {
                                     <p className="text-xs text-secondary leading-relaxed">請輸入退回原因，這將幫助申請人了解需要補齊的資訊。</p>
                                 </div>
                                 <button onClick={() => setShowModal(false)} className="text-secondary hover:text-on-surface transition-colors">
-                                    <X size={20} />
+                                    <X size={20} className="text-secondary" />
                                 </button>
                             </div>
                             <div className="p-6 space-y-6">
@@ -878,7 +887,7 @@ export default function ApprovalDetail() {
                                     </select>
                                 </div>
                                 <div className="p-4 bg-error-container/20 border-l-4 border-error rounded flex gap-3">
-                                    <AlertCircle size={20} className="text-error shrink-0" />
+                                    <AlertCircle size={20} className="text-secondary shrink-0" />
                                     <p className="text-xs text-on-error-container leading-relaxed">
                                         注意：退回後，申請人將收到系統通知並需要重新提交申請表單。
                                     </p>

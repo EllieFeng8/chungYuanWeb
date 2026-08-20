@@ -9,6 +9,7 @@ import {
   ChevronRight,
   History,
   FileText,
+  Clock,
 } from '../components/icons';
 import Layout from '../components/Layout';
 import { motion } from 'motion/react';
@@ -233,7 +234,7 @@ export default function Records() {
             </div>
 
             <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-              <History size={120} />
+              <History size={120} className="text-secondary" />
             </div>
           </motion.div>
 
@@ -247,7 +248,7 @@ export default function Records() {
             </div>
 
             <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity">
-              <FileText size={120} />
+              <FileText size={120} className="text-secondary" />
             </div>
           </motion.div>
         </div>
@@ -330,7 +331,7 @@ export default function Records() {
             disabled={loading || refreshing}
             className="bg-surface-container border border-outline text-on-surface-variant p-2.5 rounded-lg hover:bg-surface-container-high transition-colors disabled:opacity-50"
           >
-            <RefreshCw size={18} />
+            <RefreshCw size={18} className="text-secondary" />
           </button>
         </div>
 
@@ -379,7 +380,10 @@ export default function Records() {
                         <p className="text-sm text-on-surface leading-snug">{record.period.endDate} {record.period.endTime}</p>
                       </td>
                       <td className="px-6 py-5">
-                        <p className="text-sm font-medium text-on-surface">{record.hours}</p>
+                        <div className="flex items-center gap-2 text-on-surface">
+                          <Clock size={16} className="text-secondary" />
+                          <p className="text-sm font-medium">{record.hours}</p>
+                        </div>
                       </td>
                       <td className="px-6 py-5">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getApplicationStatusStyles(record.status)}`}>
@@ -389,11 +393,11 @@ export default function Records() {
                       <td className="px-6 py-5 text-right">
                         {record.supplementRequired ? (
                           <button type="button" className="text-tertiary hover:scale-110 transition-transform">
-                            <Edit3 size={18} />
+                            <Edit3 size={18} className="text-secondary" />
                           </button>
                         ) : (
                           <button type="button" className="text-secondary hover:text-primary hover:scale-110 transition-transform">
-                            <Eye size={18} />
+                            <Eye size={18} className="text-secondary" />
                           </button>
                         )}
                       </td>
@@ -436,7 +440,7 @@ export default function Records() {
                 onClick={() => setCurrentPage(Math.max(1, safeCurrentPage - 1))}
                 className="w-9 h-9 border border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-30"
               >
-                <ChevronLeft size={18} />
+                <ChevronLeft size={18} className="text-secondary" />
               </button>
               {visiblePageNumbers.map((page) => (
                 typeof page === 'string' ? (
@@ -465,7 +469,7 @@ export default function Records() {
                 onClick={() => setCurrentPage(Math.min(totalPages, safeCurrentPage + 1))}
                 className="w-9 h-9 border border-outline-variant rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors disabled:opacity-30"
               >
-                <ChevronRight size={18} />
+                <ChevronRight size={18} className="text-secondary" />
               </button>
             </div>
           </div>

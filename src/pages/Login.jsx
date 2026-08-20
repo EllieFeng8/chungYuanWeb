@@ -272,7 +272,7 @@ export default function Login() {
         >
           <Shield size={28} />
         </motion.div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-on-surface mb-1">China Foods</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold text-on-surface mb-1">中原食品</h1>
         <p className="text-sm font-medium text-secondary">請假/加班管理系統</p>
       </div>
 

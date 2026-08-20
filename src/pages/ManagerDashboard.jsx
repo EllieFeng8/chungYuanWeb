@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import { AlertCircle, CalendarDays, ClipboardCheck, Clock, FileClock, FileWarning } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -13,10 +13,6 @@ import {
     rejectAgentRequest,
 } from '../lib/cfctApi';
 import { getApplicationTypeName, getCurrentEmployeeContext } from '../lib/applicationUtils';
-
-function isOvertimeApplication(application) {
-    return String(getApplicationTypeName(application) || '').includes('加班');
-}
 
 function mapAgentAssignment(item) {
     return {
@@ -44,8 +40,6 @@ export default function ManagerDashboard() {
     const promptedAssignmentKeyRef = useRef('');
     const [counts, setCounts] = useState({
         pendingApprovals: 0,
-        overtimeApplications: 0,
-        leaveApplications: 0,
         pendingMyApplications: 0,
         needSupplementMyApplications: 0,
     });
@@ -133,8 +127,6 @@ export default function ManagerDashboard() {
                 const approvalItems = Array.isArray(approvalResponse.data) ? approvalResponse.data : [];
                 setCounts({
                     pendingApprovals: approvalItems.filter((item) => item?.status === 'pending').length,
-                    overtimeApplications: approvalItems.filter((item) => isOvertimeApplication(item)).length,
-                    leaveApplications: approvalItems.filter((item) => !isOvertimeApplication(item)).length,
                     pendingMyApplications: 0,
                     needSupplementMyApplications: 0,
                 });
@@ -154,16 +146,12 @@ export default function ManagerDashboard() {
 
             setCounts({
                 pendingApprovals: approvalItems.filter((item) => item?.status === 'pending').length,
-                overtimeApplications: 0,
-                leaveApplications: 0,
                 pendingMyApplications: myApplications.filter((item) => item?.status === 'pending').length,
                 needSupplementMyApplications: myApplications.filter((item) => item?.status === 'need_supplement').length,
             });
         } catch (error) {
             setCounts({
                 pendingApprovals: 0,
-                overtimeApplications: 0,
-                leaveApplications: 0,
                 pendingMyApplications: 0,
                 needSupplementMyApplications: 0,
             });
@@ -198,16 +186,14 @@ export default function ManagerDashboard() {
             return [
                 pendingCard,
                 {
-                    label: '加班申請總數',
-                    count: counts.overtimeApplications,
+                    label: '加班申請',
                     path: '/approvals',
                     color: 'tertiary',
                     icon: Clock,
                     bgColor: 'bg-tertiary-container/10',
                 },
                 {
-                    label: '請假申請總數',
-                    count: counts.leaveApplications,
+                    label: '請假申請',
                     path: '/approvals',
                     color: 'blue-500',
                     icon: CalendarDays,
@@ -353,32 +339,41 @@ export default function ManagerDashboard() {
             ) : null}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                 {stats.map((stat, idx) => (
-                    <motion.div
-                        key={stat.label}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                        onClick={() => stat.path && navigate(stat.path)}
-                        className={`cursor-pointer ${idx === 0 ? 'md:col-span-12' : 'md:col-span-6'}`}
-                    >
-                        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-8 flex justify-between items-center transition-all hover:shadow-md hover:-translate-y-1 relative overflow-hidden group">
-                            <div className={`absolute top-0 left-0 w-1 h-full bg-${stat.color}`} />
-                            <div className="space-y-4">
-                                <div className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center text-${stat.color}`}>
-                                    <stat.icon size={28} />
+                    <Fragment key={stat.label}>
+                        {accountRole === 'manager' && idx === 0 ? (
+                            <h2 className="md:col-span-12 text-xl font-semibold text-on-surface">審核詳情</h2>
+                        ) : null}
+                        {accountRole === 'manager' && idx === 1 ? (
+                            <h2 className="md:col-span-12 text-xl font-semibold text-on-surface">我的申請紀錄</h2>
+                        ) : null}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.1 }}
+                            onClick={() => stat.path && navigate(stat.path)}
+                            className={`cursor-pointer ${idx === 0 ? 'md:col-span-12' : 'md:col-span-6'}`}
+                        >
+                            <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-8 flex justify-between items-center transition-all hover:shadow-md hover:-translate-y-1 relative overflow-hidden group">
+                                <div className={`absolute top-0 left-0 w-1 h-full bg-${stat.color}`} />
+                                <div className="space-y-4">
+                                    <div className={`w-12 h-12 ${stat.bgColor} rounded-lg flex items-center justify-center text-${stat.color}`}>
+                                        <stat.icon size={28} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-secondary font-medium">{stat.label}</h3>
+                                        {stat.count !== undefined ? (
+                                            <p className={`text-5xl font-extrabold text-${stat.color} mt-2`}>
+                                                {loading ? '-' : stat.count}
+                                            </p>
+                                        ) : null}
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-secondary font-medium">{stat.label}</h3>
-                                    <p className={`text-5xl font-extrabold text-${stat.color} mt-2`}>
-                                        {loading ? '-' : stat.count}
-                                    </p>
+                                <div className="hidden md:block opacity-5 group-hover:opacity-10 transition-opacity absolute right-8">
+                                    <stat.icon size={120} />
                                 </div>
                             </div>
-                            <div className="hidden md:block opacity-5 group-hover:opacity-10 transition-opacity absolute right-8">
-                                <stat.icon size={120} />
-                            </div>
-                        </div>
-                    </motion.div>
+                        </motion.div>
+                    </Fragment>
                 ))}
             </div>
         </div>
