@@ -1,4 +1,4 @@
-import { getAccountDetail, getEmployeeList } from './cfctApi';
+import { getAccountDetail, getApplicationDetail, getEmployeeList } from './cfctApi';
 
 export const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
 export const ACCOUNT_SEQNO_STORAGE_KEY = 'loginAccountSeqNo';
@@ -258,4 +258,35 @@ export function getApplicationPeriod(application) {
     endDate: formatDateOnly(end),
     endTime: formatTimeOnly(end),
   };
+}
+
+export function getApplicationPeriodText(application) {
+  const period = getApplicationPeriod(application);
+  if (period.startDate === '-' || period.endDate === '-') {
+    return '-';
+  }
+
+  return `${period.startDate} ${period.startTime} ～ ${period.endDate} ${period.endTime}`;
+}
+
+export async function enrichApplicationPeriod(application) {
+  if (application?.startTime && application?.endTime) {
+    return application;
+  }
+
+  const seqNo = application?.seqNo || application?.applicationSeqNo || application?.id;
+  if (!seqNo) {
+    return application;
+  }
+
+  try {
+    const response = await getApplicationDetail(seqNo);
+    if (!response?.success || !response?.data) {
+      return application;
+    }
+
+    return { ...application, ...response.data };
+  } catch {
+    return application;
+  }
 }

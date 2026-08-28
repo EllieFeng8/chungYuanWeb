@@ -5,7 +5,12 @@ import { Clock, CalendarX, AlertCircle } from '../components/icons';
 import Layout from '../components/Layout';
 import { motion } from 'motion/react';
 import { acceptAgentRequest, getAgentRequestInbox, rejectAgentRequest } from '../lib/cfctApi';
-import { getApplicationTypeName, getCurrentEmployeeContext } from '../lib/applicationUtils';
+import {
+  enrichApplicationPeriod,
+  getApplicationPeriodText,
+  getApplicationTypeName,
+  getCurrentEmployeeContext,
+} from '../lib/applicationUtils';
 
 function mapAgentAssignment(item) {
   return {
@@ -15,6 +20,7 @@ function mapAgentAssignment(item) {
     agentEmpNo: item?.agentEmpNo || '',
     agent2EmpNo: item?.agent2EmpNo || '',
     typeName: getApplicationTypeName(item),
+    periodText: getApplicationPeriodText(item),
     rowVer: item?.rowVer,
     raw: item,
   };
@@ -65,9 +71,8 @@ export default function Dashboard() {
       });
       const requestResponse = await fetchAgentInbox(employee.employeeNo);
 
-      const assignments = Array.isArray(requestResponse.data)
-        ? requestResponse.data
-          .filter((item) => {
+      const pendingItems = Array.isArray(requestResponse.data)
+        ? requestResponse.data.filter((item) => {
             const matchesCurrentEmployee = (
               normalizeEmployeeNo(item?.agentEmpNo) === normalizeEmployeeNo(employee.employeeNo)
               || normalizeEmployeeNo(item?.agent2EmpNo) === normalizeEmployeeNo(employee.employeeNo)
@@ -75,8 +80,9 @@ export default function Dashboard() {
             const confirmState = String(item?.agentConfirmState || 'pending').trim().toLowerCase();
             return matchesCurrentEmployee && confirmState === 'pending';
           })
-          .map(mapAgentAssignment)
         : [];
+      const detailedItems = await Promise.all(pendingItems.map(enrichApplicationPeriod));
+      const assignments = detailedItems.map(mapAgentAssignment);
 
       setAgentAssignments(assignments);
     } catch (error) {
@@ -102,7 +108,8 @@ export default function Dashboard() {
 
     const firstAssignment = agentAssignments[0];
     if (agentAssignments.length === 1) {
-      return `${firstAssignment.applicantName} 指定您代理 ${firstAssignment.typeName} 申請。`;
+      const periodSuffix = firstAssignment.periodText === '-' ? '' : `（${firstAssignment.periodText}）`;
+      return `${firstAssignment.applicantName} 指定您代理 ${firstAssignment.typeName} 申請${periodSuffix}。`;
     }
 
     return `${firstAssignment.applicantName} 等 ${agentAssignments.length} 筆申請指定您代理。`;
@@ -160,6 +167,7 @@ export default function Dashboard() {
           <div>單號：${firstAssignment.seqNo}</div>
           <div>申請人：${firstAssignment.applicantName}</div>
           <div>類型：${firstAssignment.typeName}</div>
+          <div>請假時間：${firstAssignment.periodText}</div>
           <div>待處理筆數：${agentAssignments.length}</div>
         </div>
       `,

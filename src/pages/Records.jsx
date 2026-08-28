@@ -341,11 +341,11 @@ export default function Records() {
               <thead className="bg-surface-container-low border-b border-outline-variant">
                 <tr>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">單號</th>
-                  <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請日期時間</th>
-                  <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請類型</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">日期時間</th>
+                  <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請類型</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">時數</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">狀態</th>
+                  <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant uppercase tracking-widest">申請日期時間</th>
                   <th className="px-6 py-4 text-[11px] font-black text-on-surface-variant text-right tracking-widest">操作</th>
                 </tr>
               </thead>
@@ -367,17 +367,14 @@ export default function Records() {
                         <p className="text-sm font-bold text-on-surface">{record.appNo || '-'}</p>
                       </td>
                       <td className="px-6 py-5">
-                        <p className="text-sm font-bold text-on-surface">{record.submittedAt || '-'}</p>
+                        <p className="text-sm text-on-surface leading-snug">{record.period.startDate} {record.period.startTime} -</p>
+                        <p className="text-sm text-on-surface leading-snug">{record.period.endDate} {record.period.endTime}</p>
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2">
                           <span className={`w-2 h-2 rounded-full ${record.dotColor}`}></span>
                           <span className="text-sm font-medium">{record.typeName}</span>
                         </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <p className="text-sm text-on-surface leading-snug">{record.period.startDate} {record.period.startTime} -</p>
-                        <p className="text-sm text-on-surface leading-snug">{record.period.endDate} {record.period.endTime}</p>
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-2 text-on-surface">
@@ -389,6 +386,9 @@ export default function Records() {
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getApplicationStatusStyles(record.status)}`}>
                           {record.statusLabel}
                         </span>
+                      </td>
+                      <td className="px-6 py-5">
+                        <p className="text-sm font-bold text-on-surface">{record.submittedAt || '-'}</p>
                       </td>
                       <td className="px-6 py-5 text-right">
                         {record.supplementRequired ? (

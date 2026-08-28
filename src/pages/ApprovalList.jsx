@@ -463,21 +463,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         approvalList.filter((item) => {
             const normalizedKeyword = searchKeyword.trim().toLowerCase();
             if (normalizedKeyword) {
-                const searchableText = [
-                    item.seqNo,
-                    item.department,
-                    item.applicant,
-                    item.requestTime,
-                    item.type,
-                    item.duration,
-                    item.agentName,
-                    item.agentStatus,
-                    item.attachmentStatus,
-                    item.status,
-                    item.detail,
-                ]
-                    .map((value) => String(value || '').toLowerCase())
-                    .join(' ');
+                const searchableText = String(item.applicant || '').toLowerCase();
 
                 if (!searchableText.includes(normalizedKeyword)) {
                     return false;
@@ -845,7 +831,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                                                 handleSearch();
                                             }
                                         }}
-                                        placeholder="輸入關鍵字"
+                                        placeholder="輸入員工資訊"
                                         className="h-10 min-w-0 flex-1 border border-outline-variant rounded-lg px-3 text-sm bg-surface-container-lowest focus:ring-1 focus:ring-primary outline-none"
                                     />
                                     <button
