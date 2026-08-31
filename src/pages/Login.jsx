@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, User, Lock, ArrowRight, AlertCircle } from '../components/icons';
 import { motion } from 'motion/react';
 import { getAccountByLineUserId, getHealth, login } from '../lib/cfctApi';
+import { clearPersistedListStates } from '../lib/listState';
 
 const ROLE_STORAGE_KEY = 'userRole';
 const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
@@ -77,6 +78,8 @@ function normalizeAppRole(apiRole) {
 }
 
 function persistLoginSession(account, roleConfig, remember) {
+  clearPersistedListStates();
+
   const storage = remember ? localStorage : sessionStorage;
   const fallbackStorage = remember ? sessionStorage : localStorage;
 
@@ -411,15 +414,6 @@ export default function Login() {
 
             </div>
           </div>
-
-          <div className="rounded-lg bg-surface-container-low p-4 text-xs text-on-surface-variant space-y-1">
-            <div>角色對應：</div>
-            <div>admin → 主管首頁</div>
-            <div>manager → 主管首頁</div>
-            <div>member → 員工表單申請</div>
-          </div>
-
-
         </div>
       </motion.main>
     </div>

@@ -28,6 +28,43 @@ export function getStoredAccountSeqNo() {
   );
 }
 
+export function resolveCurrentApproverStepState(applicationDetail, currentEmployee, accountDetail) {
+  const steps = Array.isArray(applicationDetail?.steps) ? applicationDetail.steps : [];
+  if (!steps.length) {
+    return '';
+  }
+
+  const currentApproverName = String(currentEmployee?.employeeName || '').trim().toLowerCase();
+  const fallbackApproverNames = [
+    accountDetail?.displayName,
+    accountDetail?.accountName,
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  const matchedStepIndex = steps.findIndex((step) => {
+    const approverName = String(step?.approverName || '').trim().toLowerCase();
+    if (currentApproverName && approverName === currentApproverName) {
+      return true;
+    }
+
+    return fallbackApproverNames.includes(approverName);
+  });
+  const matchedStep = matchedStepIndex >= 0 ? steps[matchedStepIndex] : null;
+  const previousStep = matchedStepIndex > 0 ? steps[matchedStepIndex - 1] : null;
+
+  if (
+    accountDetail?.role === 'manager'
+    && applicationDetail?.status === 'pending'
+    && matchedStep?.stepState === 'pending'
+    && previousStep?.stepState === 'pending'
+  ) {
+    return '待其他主管簽核';
+  }
+
+  return String(matchedStep?.stepState || '').trim();
+}
+
 export function resolveCurrentEmployee(employees, accountName, accountDetail) {
   if (!Array.isArray(employees) || !employees.length) {
     return null;

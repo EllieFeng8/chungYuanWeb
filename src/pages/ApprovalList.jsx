@@ -32,18 +32,12 @@ import {
     getApplicationStatusLabel,
     getApplicationStatusStyles,
     getApplicationTypeName,
+    resolveCurrentApproverStepState,
 } from '../lib/applicationUtils';
+import { APPROVAL_LIST_STATE_STORAGE_KEY } from '../lib/listState';
 import { getVisiblePageNumbers } from '../lib/pagination';
 
 const STATUS_ALL = 'all';
-const APPROVAL_LIST_STATE_STORAGE_KEY = 'approvalListState';
-
-const STATUS_QUERY_MAP = {
-    [STATUS_ALL]: '',
-    '審核中': 'pending',
-    '已核准': 'approved',
-    '已駁回': 'rejected',
-};
 
 function getStoredApprovalListState() {
     try {
@@ -67,6 +61,13 @@ function getStoredNumberValue(state, key, fallback) {
     const value = Number(state[key]);
     return Number.isFinite(value) && value > 0 ? value : fallback;
 }
+
+const STATUS_QUERY_MAP = {
+    [STATUS_ALL]: '',
+    '審核中': 'pending',
+    '已核准': 'approved',
+    '已駁回': 'rejected',
+};
 
 function getAgentStatusLabel(status, hasAgent) {
     switch (status) {
@@ -181,43 +182,6 @@ function buildTypeNameMap(...typeLists) {
     );
 }
 
-function resolveCurrentApproverStepState(applicationDetail, currentEmployee, accountDetail) {
-    const steps = Array.isArray(applicationDetail?.steps) ? applicationDetail.steps : [];
-    if (!steps.length) {
-        return '';
-    }
-
-    const currentApproverName = String(currentEmployee?.employeeName || '').trim().toLowerCase();
-    const fallbackApproverNames = [
-        accountDetail?.displayName,
-        accountDetail?.accountName,
-    ]
-        .map((value) => String(value || '').trim().toLowerCase())
-        .filter(Boolean);
-
-    const matchedStepIndex = steps.findIndex((step) => {
-        const approverName = String(step?.approverName || '').trim().toLowerCase();
-        if (currentApproverName && approverName === currentApproverName) {
-            return true;
-        }
-
-        return fallbackApproverNames.includes(approverName);
-    });
-    const matchedStep = matchedStepIndex >= 0 ? steps[matchedStepIndex] : null;
-    const previousStep = matchedStepIndex > 0 ? steps[matchedStepIndex - 1] : null;
-
-    if (
-        accountDetail?.role === 'manager'
-        && applicationDetail?.status === 'pending'
-        && matchedStep?.stepState === 'pending'
-        && previousStep?.stepState === 'pending'
-    ) {
-        return '待其他主管簽核';
-    }
-
-    return String(matchedStep?.stepState || '').trim();
-}
-
 function normalizeApprovalItem(item, statusOverride = '', typeNameMap = new Map()) {
     const applicationStatus = String(item?.status || '').trim();
     const shouldUseApplicationStatus = ['rejected', 'cancelled', 'need_supplement'].includes(applicationStatus);
@@ -306,7 +270,6 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
     const [statusFilter, setStatusFilter] = useState(() => getStoredStringValue(storedListStateRef.current, 'statusFilter', STATUS_ALL));
     const [requestTypeFilter, setRequestTypeFilter] = useState(() => getStoredStringValue(storedListStateRef.current, 'requestTypeFilter', 'all'));
     const [searchInput, setSearchInput] = useState(() => getStoredStringValue(storedListStateRef.current, 'searchInput', ''));
-    const [searchKeyword, setSearchKeyword] = useState(() => getStoredStringValue(storedListStateRef.current, 'searchKeyword', ''));
     const [dateFrom, setDateFrom] = useState(() => getStoredStringValue(storedListStateRef.current, 'dateFrom', ''));
     const [dateTo, setDateTo] = useState(() => getStoredStringValue(storedListStateRef.current, 'dateTo', ''));
     const [pageSize, setPageSize] = useState(() => getStoredNumberValue(storedListStateRef.current, 'pageSize', 10));
@@ -461,7 +424,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
 
     const filteredApprovalList = useMemo(() => (
         approvalList.filter((item) => {
-            const normalizedKeyword = searchKeyword.trim().toLowerCase();
+            const normalizedKeyword = searchInput.trim().toLowerCase();
             if (normalizedKeyword) {
                 const searchableText = String(item.applicant || '').toLowerCase();
 
@@ -513,7 +476,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         leaveTypeCodeSet,
         overtimeTypeCodeSet,
         requestTypeFilter,
-        searchKeyword,
+        searchInput,
         statusFilter,
     ]);
 
@@ -528,7 +491,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         }
 
         setCurrentPage(1);
-    }, [departmentFilter, statusFilter, requestTypeFilter, searchKeyword, dateFrom, dateTo, pageSize]);
+    }, [departmentFilter, statusFilter, requestTypeFilter, searchInput, dateFrom, dateTo, pageSize]);
 
     useEffect(() => {
         window.sessionStorage.setItem(
@@ -538,7 +501,6 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                 statusFilter,
                 requestTypeFilter,
                 searchInput,
-                searchKeyword,
                 dateFrom,
                 dateTo,
                 pageSize,
@@ -553,18 +515,13 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         pageSize,
         requestTypeFilter,
         searchInput,
-        searchKeyword,
         statusFilter,
     ]);
-
-    const handleSearch = () => {
-        setSearchKeyword(searchInput.trim());
-    };
 
     const statsOverview = useMemo(() => ([
         {
             label: '待審核',
-            count: approvalList.filter((item) => item.currentApprovalStatus === 'pending').length,
+            count: approvalList.filter((item) => item.status === '審核中').length,
             unit: '項申請',
             color: 'primary',
             icon: Clock,
@@ -826,20 +783,15 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                                         type="text"
                                         value={searchInput}
                                         onChange={(event) => setSearchInput(event.target.value)}
-                                        onKeyDown={(event) => {
-                                            if (event.key === 'Enter') {
-                                                handleSearch();
-                                            }
-                                        }}
                                         placeholder="輸入員工資訊"
                                         className="h-10 min-w-0 flex-1 border border-outline-variant rounded-lg px-3 text-sm bg-surface-container-lowest focus:ring-1 focus:ring-primary outline-none"
                                     />
                                     <button
                                         type="button"
-                                        onClick={handleSearch}
+                                        onClick={() => setCurrentPage(1)}
                                         className="flex h-10 shrink-0 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-white transition-opacity hover:opacity-90"
                                     >
-                                        <Search className="w-4 h-4" />
+                                        <Search className="h-4 w-4" />
                                         搜索
                                     </button>
                                 </div>

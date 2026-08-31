@@ -15,6 +15,7 @@ import {
 import { Building2, Users, X } from "lucide-react";
 import { motion } from 'motion/react';
 import { getAccountDetail, revokeApiKey } from '../lib/cfctApi';
+import { clearPersistedListStates } from '../lib/listState';
 
 const ROLE_STORAGE_KEY = 'userRole';
 const ACCOUNT_NAME_STORAGE_KEY = 'loginAccountName';
@@ -111,6 +112,26 @@ export default function Layout({ children, title = "", showBack = false }) {
       localStorage.getItem(ACCOUNT_SEQNO_STORAGE_KEY)
       || sessionStorage.getItem(ACCOUNT_SEQNO_STORAGE_KEY);
 
+    const clearLoginState = () => {
+      [
+        ROLE_STORAGE_KEY,
+        ACCOUNT_NAME_STORAGE_KEY,
+        DISPLAY_NAME_STORAGE_KEY,
+        ACCOUNT_SEQNO_STORAGE_KEY,
+        LINE_USER_ID_STORAGE_KEY,
+      ].forEach((key) => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+      clearPersistedListStates();
+    };
+
+    clearLoginState();
+
+    setDisplayName('未登入');
+    setRole('employee');
+    setIsMobileSidebarOpen(false);
+
     if (storedSeqNo) {
       try {
         console.log('[Layout] PATCH /app-api/api-key/:seqNo/revoke', { seqNo: storedSeqNo });
@@ -121,21 +142,10 @@ export default function Layout({ children, title = "", showBack = false }) {
       }
     }
 
-    [
-      ROLE_STORAGE_KEY,
-      ACCOUNT_NAME_STORAGE_KEY,
-      DISPLAY_NAME_STORAGE_KEY,
-      ACCOUNT_SEQNO_STORAGE_KEY,
-      LINE_USER_ID_STORAGE_KEY,
-    ].forEach((key) => {
-      localStorage.removeItem(key);
-      sessionStorage.removeItem(key);
-    });
-
-    setDisplayName('未登入');
-    setRole('employee');
-    setIsMobileSidebarOpen(false);
-    navigate('/', { replace: true });
+    // Re-clear in case the outgoing page wrote state while the revoke request was running,
+    // then reload the application so no in-memory page state can survive logout.
+    clearLoginState();
+    window.location.replace('/');
   };
 
   const navItems = NAV_ITEMS[role] || NAV_ITEMS.employee;

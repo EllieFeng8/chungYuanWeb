@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import {
     acceptAgentRequest,
+    getApplicationDetail,
     getDeptApprovalList,
     getAgentRequestInbox,
     getHrApplicationList,
@@ -14,9 +15,11 @@ import {
 } from '../lib/cfctApi';
 import {
     enrichApplicationPeriod,
+    getApplicationStatusLabel,
     getApplicationPeriodText,
     getApplicationTypeName,
     getCurrentEmployeeContext,
+    resolveCurrentApproverStepState,
 } from '../lib/applicationUtils';
 
 function mapAgentAssignment(item) {
@@ -35,6 +38,38 @@ function mapAgentAssignment(item) {
 
 function normalizeEmployeeNo(value) {
     return String(value || '').trim().toLowerCase();
+}
+
+async function getManagerApprovalStatusLabel(item, currentEmployee, accountDetail) {
+    const seqNo = item?.seqNo || item?.applicationSeqNo || item?.id;
+    let applicationStatus = String(item?.status || '').trim();
+    let currentStepState = '';
+
+    if (seqNo) {
+        try {
+            const detailResponse = await getApplicationDetail(seqNo);
+            if (detailResponse?.success) {
+                applicationStatus = String(detailResponse.data?.status || applicationStatus).trim();
+                currentStepState = resolveCurrentApproverStepState(
+                    detailResponse.data,
+                    currentEmployee,
+                    accountDetail
+                );
+            }
+        } catch (detailError) {
+            console.error('[ManagerDashboard] application detail read failed', {
+                seqNo,
+                error: detailError instanceof Error ? detailError.message : detailError,
+            });
+        }
+    }
+
+    const shouldUseApplicationStatus = ['rejected', 'cancelled', 'need_supplement'].includes(applicationStatus);
+    const status = shouldUseApplicationStatus
+        ? applicationStatus
+        : String(currentStepState || applicationStatus).trim();
+
+    return getApplicationStatusLabel(status);
 }
 
 export default function ManagerDashboard() {
@@ -149,9 +184,12 @@ export default function ManagerDashboard() {
 
             const approvalItems = Array.isArray(approvalResponse.data) ? approvalResponse.data : [];
             const myApplications = Array.isArray(myApplicationsResponse.data) ? myApplicationsResponse.data : [];
+            const approvalStatusLabels = await Promise.all(
+                approvalItems.map((item) => getManagerApprovalStatusLabel(item, employee, accountDetail))
+            );
 
             setCounts({
-                pendingApprovals: approvalItems.filter((item) => item?.status === 'pending').length,
+                pendingApprovals: approvalStatusLabels.filter((statusLabel) => statusLabel === '審核中').length,
                 pendingMyApplications: myApplications.filter((item) => item?.status === 'pending').length,
                 needSupplementMyApplications: myApplications.filter((item) => item?.status === 'need_supplement').length,
             });
