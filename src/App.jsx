@@ -18,6 +18,7 @@ import EmployeeForm from './pages/EmployeeForm';
 import EmployeeList from './pages/EmployeeList';
 import AccountManagement from './pages/AccountManagement';
 import LineUserManagement from './pages/LineUserManagement';
+import AttendanceManagement from './pages/AttendanceManagement';
 
 const ROLE_STORAGE_KEY = 'userRole';
 const ACCOUNT_SEQNO_STORAGE_KEY = 'loginAccountSeqNo';
@@ -37,6 +38,14 @@ function hasLoginSession() {
 
 function ProtectedRoute({ children }) {
   return hasLoginSession() ? children : <Navigate to="/" replace />;
+}
+
+function AdminRoute({ children }) {
+  if (!hasLoginSession()) {
+    return <Navigate to="/" replace />;
+  }
+  const role = localStorage.getItem(ROLE_STORAGE_KEY) || sessionStorage.getItem(ROLE_STORAGE_KEY);
+  return role === 'hr' ? children : <Navigate to="/dashboard" replace />;
 }
 
 export default function App() {
@@ -61,6 +70,7 @@ export default function App() {
         <Route path="/employeeForm" element={<ProtectedRoute><EmployeeForm /></ProtectedRoute>} />
         <Route path="/accountManagement" element={<ProtectedRoute><AccountManagement /></ProtectedRoute>} />
         <Route path="/lineUserManagement" element={<ProtectedRoute><LineUserManagement /></ProtectedRoute>} />
+        {/*<Route path="/attendanceManagement" element={<AdminRoute><AttendanceManagement /></AdminRoute>} />*/}
         <Route path="/approvals/detail" element={<ProtectedRoute><ApprovalDetail /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

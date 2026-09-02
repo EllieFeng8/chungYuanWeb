@@ -515,6 +515,74 @@ app.delete('/app-api/departments/:seqNo', (req, res) => {
   });
 });
 
+function attendanceQuery(req, keys) {
+  const searchParams = new URLSearchParams();
+  keys.forEach((key) => {
+    const value = String(req.query[key] ?? '').trim();
+    if (value) {
+      searchParams.set(key, value);
+    }
+  });
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
+}
+
+app.post('/app-api/attendance/imports', (req, res) => {
+  return forwardMultipart(req, res, '/api/attendance/imports');
+});
+
+app.get('/app-api/attendance/imports', (_req, res) => {
+  return forwardJson(res, '/api/attendance/imports');
+});
+
+app.delete('/app-api/attendance/imports/:seqNo', (req, res) => {
+  return forwardJson(res, `/api/attendance/imports/${req.params.seqNo}`, {
+    method: 'DELETE',
+    body: JSON.stringify(req.body),
+  });
+});
+
+app.post('/app-api/attendance/pair', (req, res) => {
+  return forwardJson(res, '/api/attendance/pair', {
+    method: 'POST',
+    body: JSON.stringify(req.body),
+  });
+});
+
+app.post('/app-api/attendance/reconcile', (req, res) => {
+  return forwardJson(res, '/api/attendance/reconcile', {
+    method: 'POST',
+    body: JSON.stringify(req.body),
+  });
+});
+
+app.get('/app-api/attendance/logs', (req, res) => {
+  const query = attendanceQuery(req, ['EmployeeNo', 'ImportSeqNo', 'From', 'To', 'OnlyUnknown']);
+  return forwardJson(res, `/api/attendance/logs${query}`);
+});
+
+app.get('/app-api/attendance/works', (req, res) => {
+  const query = attendanceQuery(req, ['EmployeeNo', 'From', 'To', 'PairState', 'OnlyBroken']);
+  return forwardJson(res, `/api/attendance/works${query}`);
+});
+
+app.patch('/app-api/attendance/works/:seqNo', (req, res) => {
+  return forwardJson(res, `/api/attendance/works/${req.params.seqNo}`, {
+    method: 'PATCH',
+    body: JSON.stringify(req.body),
+  });
+});
+
+app.get('/app-api/attendance/reconciliations', (req, res) => {
+  const query = attendanceQuery(req, ['EmployeeNo', 'From', 'To', 'ReconState', 'OnlyAbnormal']);
+  return forwardJson(res, `/api/attendance/reconciliations${query}`);
+});
+
+app.get('/app-api/attendance/export', (req, res) => {
+  const query = attendanceQuery(req, ['EmployeeNo', 'From', 'To', 'ReconState', 'OnlyAbnormal']);
+  return forwardBinary(res, `/api/attendance/export${query}`);
+});
+
 app.listen(port, () => {
   console.log(`Chinafood BFF listening on http://127.0.0.1:${port}`);
 });

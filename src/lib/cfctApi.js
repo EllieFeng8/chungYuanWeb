@@ -325,3 +325,69 @@ export function deleteDepartment(seqNo, payload) {
     body: JSON.stringify(payload),
   });
 }
+
+function buildQuery(filters = {}) {
+  const searchParams = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      searchParams.set(key, String(value).trim());
+    }
+  });
+  const query = searchParams.toString();
+  return query ? `?${query}` : '';
+}
+
+export function importAttendance(formData) {
+  return request('/app-api/attendance/imports', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export function getAttendanceImports() {
+  return request('/app-api/attendance/imports');
+}
+
+export function deleteAttendanceImport(seqNo, rowVer) {
+  return request(`/app-api/attendance/imports/${encodeURIComponent(seqNo)}`, {
+    method: 'DELETE',
+    body: JSON.stringify({ rowVer }),
+  });
+}
+
+export function pairAttendance(payload) {
+  return request('/app-api/attendance/pair', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function reconcileAttendance(payload) {
+  return request('/app-api/attendance/reconcile', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getAttendanceLogs(filters = {}) {
+  return request(`/app-api/attendance/logs${buildQuery(filters)}`);
+}
+
+export function getAttendanceWorks(filters = {}) {
+  return request(`/app-api/attendance/works${buildQuery(filters)}`);
+}
+
+export function updateAttendanceWork(seqNo, payload) {
+  return request(`/app-api/attendance/works/${encodeURIComponent(seqNo)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getAttendanceReconciliations(filters = {}) {
+  return request(`/app-api/attendance/reconciliations${buildQuery(filters)}`);
+}
+
+export function getAttendanceExportUrl(filters = {}) {
+  return `${API_BASE}/app-api/attendance/export${buildQuery(filters)}`;
+}
