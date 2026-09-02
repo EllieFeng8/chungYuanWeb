@@ -48,7 +48,9 @@ const RECON_LABELS = {
   missing_out: '缺下班卡',
   short: '做不足',
   over: '超時',
+  too_long: '超時',
   no_out: '缺下班卡',
+  no_in: '缺上班卡',
   noout: '缺下班卡',
   no_data: '資料不全',
   nodata: '資料不全',
@@ -85,7 +87,7 @@ function statusTone(state) {
   const normalized = String(state || '').toLowerCase();
   if (normalized === 'normal' || normalized === 'paired' || normalized === 'ok') return 'bg-emerald-50 text-emerald-700';
   if (normalized.includes('no_data') || normalized.includes('nodata')) return 'bg-slate-100 text-slate-600';
-  if (['short', 'over', 'no_out', 'noout', 'broken', 'missing_in', 'missing_out'].includes(normalized)) return 'bg-red-50 text-red-600';
+  if (['short', 'over', 'too_long', 'no_out', 'noout', 'broken', 'missing_in', 'missing_out'].includes(normalized)) return 'bg-red-50 text-red-600';
   return 'bg-slate-100 text-slate-600';
 }
 

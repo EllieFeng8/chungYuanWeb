@@ -57,7 +57,7 @@
   scrollbar-width: none;
 }
 .page-container {
-  @apply p-8 max-w-7xl mx-auto space-y-6;
+  @apply p-0 max-w-7xl mx-auto space-y-6;
 }
 .card {
   @apply bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden shadow-sm;

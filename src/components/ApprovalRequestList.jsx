@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+
 export default function ApprovalRequestList({
   items,
   loading,
@@ -8,6 +10,14 @@ export default function ApprovalRequestList({
   getApplicationStatusClassName,
 }) {
   const emptyColSpan = showAttachmentColumn ? 11 : 10;
+  const topScrollbarRef = useRef(null);
+  const tableScrollbarRef = useRef(null);
+
+  function syncHorizontalScroll(source, targetRef) {
+    if (targetRef.current && targetRef.current.scrollLeft !== source.scrollLeft) {
+      targetRef.current.scrollLeft = source.scrollLeft;
+    }
+  }
 
   function renderAgentNames(item) {
     const names = Array.isArray(item.agentNames) && item.agentNames.length
@@ -20,7 +30,20 @@ export default function ApprovalRequestList({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div>
+      <div
+        ref={topScrollbarRef}
+        className="overflow-x-auto overflow-y-hidden border-b border-outline-variant bg-surface-container-lowest"
+        onScroll={(event) => syncHorizontalScroll(event.currentTarget, tableScrollbarRef)}
+        aria-label="審核列表頂部橫向捲軸"
+      >
+        <div className="h-px min-w-[1500px]" />
+      </div>
+      <div
+        ref={tableScrollbarRef}
+        className="overflow-x-auto"
+        onScroll={(event) => syncHorizontalScroll(event.currentTarget, topScrollbarRef)}
+      >
           <table className="min-w-[1500px] w-full text-left border-collapse">
             <thead>
               <tr className="bg-surface-container-low border-b border-outline-variant">
@@ -100,6 +123,7 @@ export default function ApprovalRequestList({
               )}
             </tbody>
           </table>
+      </div>
     </div>
   );
 }

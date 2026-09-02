@@ -143,18 +143,23 @@ function getDurationText(application) {
     return `${period.startDate} ${period.startTime} - ${period.endDate} ${period.endTime}`;
 }
 
-function getApprovalRequestDate(item) {
-    const rawDate = item?.submittedAt || item?.createdAt || item?.createTime || item?.applyTime || item?.requestTime;
-    if (!rawDate) {
+function parseApplicationDateTime(value) {
+    if (!value) {
         return null;
     }
 
-    const date = new Date(rawDate);
-    if (Number.isNaN(date.getTime())) {
-        return null;
-    }
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
 
-    return date;
+function getApplicationDateTimeRange(item) {
+    const startDateTime = parseApplicationDateTime(item?.startTime);
+    const endDateTime = parseApplicationDateTime(item?.endTime);
+
+    return {
+        startDateTime: startDateTime || endDateTime,
+        endDateTime: endDateTime || startDateTime,
+    };
 }
 
 function getTypeCode(option) {
@@ -437,17 +442,17 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                 return false;
             }
 
-            const requestDate = getApprovalRequestDate(item.raw);
+            const { startDateTime, endDateTime } = getApplicationDateTimeRange(item.raw);
             if (dateFrom) {
-                const startDate = new Date(`${dateFrom}T00:00:00`);
-                if (!requestDate || requestDate < startDate) {
+                const filterStartDateTime = new Date(`${dateFrom}T00:00:00`);
+                if (!endDateTime || endDateTime < filterStartDateTime) {
                     return false;
                 }
             }
 
             if (dateTo) {
-                const endDate = new Date(`${dateTo}T23:59:59.999`);
-                if (!requestDate || requestDate > endDate) {
+                const filterEndDateTime = new Date(`${dateTo}T23:59:59.999`);
+                if (!startDateTime || startDateTime > filterEndDateTime) {
                     return false;
                 }
             }
@@ -810,7 +815,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                                 </select>
                             </div>
                             <div className="flex min-w-0 flex-col gap-1">
-                                <label className="text-xs text-secondary whitespace-nowrap">申請起迄日期</label>
+                                <label className="text-xs text-secondary whitespace-nowrap">日期時間</label>
                                 <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                                     <input
                                         type="date"
