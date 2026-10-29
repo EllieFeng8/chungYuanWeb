@@ -41,7 +41,7 @@ const NAV_ITEMS = {
     // { to: '/lineUserManagement', label: 'LINE 使用者', icon: Building2 },
     { to: '/departmentManagement', label: '部門管理', icon: Building2 },
     { to: '/employeeList', label: '員工管理', icon: Users },
-    // { to: '/attendanceManagement', label: '出勤管理', icon: ScanLine },
+    { to: '/attendanceManagement', label: '出勤管理', icon: ScanLine },
   ],
 };
 

@@ -70,7 +70,7 @@ export default function App() {
         <Route path="/employeeForm" element={<ProtectedRoute><EmployeeForm /></ProtectedRoute>} />
         <Route path="/accountManagement" element={<ProtectedRoute><AccountManagement /></ProtectedRoute>} />
         <Route path="/lineUserManagement" element={<ProtectedRoute><LineUserManagement /></ProtectedRoute>} />
-        {/*<Route path="/attendanceManagement" element={<AdminRoute><AttendanceManagement /></AdminRoute>} />*/}
+        <Route path="/attendanceManagement" element={<AdminRoute><AttendanceManagement /></AdminRoute>} />
         <Route path="/approvals/detail" element={<ProtectedRoute><ApprovalDetail /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

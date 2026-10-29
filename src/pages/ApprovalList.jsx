@@ -17,11 +17,11 @@ import {
     getAttachmentDownloadUrl,
     getAttachmentList,
     getApplicationDetail,
-    getDepartmentList,
     getDeptApprovalList,
     getHrApplicationExportUrl,
     getHrApplicationList,
     getLeaveTypeList,
+    updateHrApplicationPayroll,
 } from '../lib/cfctApi';
 import {
     formatDateTime,
@@ -38,6 +38,13 @@ import { APPROVAL_LIST_STATE_STORAGE_KEY } from '../lib/listState';
 import { getVisiblePageNumbers } from '../lib/pagination';
 
 const STATUS_ALL = 'all';
+const ROLE_STORAGE_KEY = 'userRole';
+
+function hasAdminSession() {
+    const storedRole = window.localStorage.getItem(ROLE_STORAGE_KEY)
+        || window.sessionStorage.getItem(ROLE_STORAGE_KEY);
+    return storedRole === 'hr' || storedRole === 'admin';
+}
 
 function getStoredApprovalListState() {
     try {
@@ -60,6 +67,10 @@ function getStoredStringValue(state, key, fallback) {
 function getStoredNumberValue(state, key, fallback) {
     const value = Number(state[key]);
     return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function getStoredSortDirection(state, key, fallback = 'desc') {
+    return state[key] === 'asc' || state[key] === 'desc' ? state[key] : fallback;
 }
 
 const STATUS_QUERY_MAP = {
@@ -206,6 +217,7 @@ function normalizeApprovalItem(item, statusOverride = '', typeNameMap = new Map(
     const typeName = typeNameMap.get(typeCode) || getApplicationTypeName(item);
     return {
         seqNo: item?.seqNo || item?.applicationSeqNo || item?.id || '',
+        employeeNo: item?.employeeNo || item?.applicantEmpNo || item?.empNo || '-',
         department: item?.departmentName || item?.deptName || item?.department || '-',
         applicant: item?.applicantName || item?.employeeName || item?.applicantEmpName || item?.applicantEmpNo || '-',
         requestTime: formatDateTime(item?.submittedAt || item?.createdAt || item?.createTime || item?.applyTime || item?.requestTime) || '-',
@@ -218,6 +230,7 @@ function normalizeApprovalItem(item, statusOverride = '', typeNameMap = new Map(
         agentName: agentNames.length ? agentNames.join(' / ') : '-',
         agentStatus: getAgentStatusLabel(item?.agentConfirmState || item?.agentStatus, hasAgent),
         attachmentStatus: attachmentCount >= 1 ? '有' : '無',
+        payrollRecorded: Boolean(item?.payrollRecorded ?? item?.PayrollRecorded),
         status: statusLabel,
         currentApprovalStatus: normalizedStatus,
         detail: item?.reason || item?.remark || item?.comment || item?.description || '-',
@@ -271,21 +284,24 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
     const navigate = useNavigate();
     const storedListStateRef = useRef(getStoredApprovalListState());
     const didMountFilterResetRef = useRef(false);
-    const [departmentFilter, setDepartmentFilter] = useState(() => getStoredStringValue(storedListStateRef.current, 'departmentFilter', 'all'));
+    const [applicationTypeFilter, setApplicationTypeFilter] = useState(() => getStoredStringValue(storedListStateRef.current, 'applicationTypeFilter', 'all'));
     const [statusFilter, setStatusFilter] = useState(() => getStoredStringValue(storedListStateRef.current, 'statusFilter', STATUS_ALL));
     const [requestTypeFilter, setRequestTypeFilter] = useState(() => getStoredStringValue(storedListStateRef.current, 'requestTypeFilter', 'all'));
     const [searchInput, setSearchInput] = useState(() => getStoredStringValue(storedListStateRef.current, 'searchInput', ''));
     const [dateFrom, setDateFrom] = useState(() => getStoredStringValue(storedListStateRef.current, 'dateFrom', ''));
     const [dateTo, setDateTo] = useState(() => getStoredStringValue(storedListStateRef.current, 'dateTo', ''));
+    const [dateTimeSortDirection, setDateTimeSortDirection] = useState(() => (
+        getStoredSortDirection(storedListStateRef.current, 'dateTimeSortDirection')
+    ));
     const [pageSize, setPageSize] = useState(() => getStoredNumberValue(storedListStateRef.current, 'pageSize', 10));
     const [currentPage, setCurrentPage] = useState(() => getStoredNumberValue(storedListStateRef.current, 'currentPage', 1));
     const [approvalList, setApprovalList] = useState([]);
     const [leaveTypeCodes, setLeaveTypeCodes] = useState([]);
     const [overtimeTypeCodes, setOvertimeTypeCodes] = useState([]);
-    const [departmentOptions, setDepartmentOptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
     const [isManager, setIsManager] = useState(false);
+    const [updatingPayrollSeqNos, setUpdatingPayrollSeqNos] = useState(() => new Set());
 
     useEffect(() => {
         let isMounted = true;
@@ -294,7 +310,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
             setLoading(true);
             try {
                 const { currentEmployee, accountDetail } = await getCurrentEmployeeContext();
-                const isAdmin = accountDetail?.role === 'admin';
+                const isAdmin = accountDetail?.role === 'admin' || hasAdminSession();
                 const isManager = accountDetail?.role === 'manager';
                 setIsAdmin(isAdmin);
                 setIsManager(isManager);
@@ -307,23 +323,18 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                         status: '',
                     });
                 }
-                console.log('[ApprovalList] GET /app-api/departments');
                 console.log('[ApprovalList] GET /app-api/leave-types?category=overtime');
                 console.log('[ApprovalList] GET /app-api/leave-types?category=leave');
-                const [approvalResponse, departmentResponse, overtimeTypeResponse, leaveTypeResponse] = await Promise.all([
+                const [approvalResponse, overtimeTypeResponse, leaveTypeResponse] = await Promise.all([
                     isAdmin
                         ? getHrApplicationList()
                         : getDeptApprovalList(currentEmployee.employeeNo, ''),
-                    getDepartmentList(),
                     getLeaveTypeList('overtime'),
                     getLeaveTypeList('leave'),
                 ]);
 
                 if (!approvalResponse?.success) {
                     throw new Error(approvalResponse?.error || (isAdmin ? '審批清單讀取失敗' : '部門簽核清單讀取失敗'));
-                }
-                if (!departmentResponse?.success) {
-                    throw new Error(departmentResponse?.error || '部門列表讀取失敗');
                 }
                 if (!overtimeTypeResponse?.success || !leaveTypeResponse?.success) {
                     throw new Error('申請類型讀取失敗');
@@ -334,7 +345,6 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                 }
 
                 const records = Array.isArray(approvalResponse.data) ? approvalResponse.data : [];
-                const departments = Array.isArray(departmentResponse.data) ? departmentResponse.data : [];
                 const overtimeTypes = Array.isArray(overtimeTypeResponse.data) ? overtimeTypeResponse.data : [];
                 const leaveTypes = Array.isArray(leaveTypeResponse.data) ? leaveTypeResponse.data : [];
                 const typeNameMap = buildTypeNameMap(overtimeTypes, leaveTypes);
@@ -380,22 +390,6 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                 setApprovalList(normalizedRecords);
                 setOvertimeTypeCodes(overtimeTypes.map((option) => getTypeCode(option)).filter(Boolean));
                 setLeaveTypeCodes(leaveTypes.map((option) => getTypeCode(option)).filter(Boolean));
-                setDepartmentOptions(
-                    departments
-                        .map((department) => {
-                            const name = department?.departmentName || department?.deptName || department?.name || '';
-                            const deptNo = department?.departmentNo || department?.deptNo || department?.id || '';
-                            if (!name) {
-                                return null;
-                            }
-
-                            return {
-                                name,
-                                deptNo: String(deptNo || '').trim(),
-                            };
-                        })
-                        .filter(Boolean)
-                );
             } catch (error) {
                 if (!isMounted) {
                     return;
@@ -404,7 +398,6 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                 setApprovalList([]);
                 setOvertimeTypeCodes([]);
                 setLeaveTypeCodes([]);
-                setDepartmentOptions([]);
                 void Swal.fire({
                     icon: 'error',
                     title: '讀取失敗',
@@ -427,8 +420,8 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
     const overtimeTypeCodeSet = useMemo(() => new Set(overtimeTypeCodes), [overtimeTypeCodes]);
     const leaveTypeCodeSet = useMemo(() => new Set(leaveTypeCodes), [leaveTypeCodes]);
 
-    const filteredApprovalList = useMemo(() => (
-        approvalList.filter((item) => {
+    const filteredApprovalList = useMemo(() => {
+        const filteredItems = approvalList.filter((item) => {
             const normalizedKeyword = searchInput.trim().toLowerCase();
             if (normalizedKeyword) {
                 const searchableText = String(item.applicant || '').toLowerCase();
@@ -438,7 +431,7 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                 }
             }
 
-            if (departmentFilter !== 'all' && item.department !== departmentFilter) {
+            if (applicationTypeFilter !== 'all' && item.typeCode !== applicationTypeFilter) {
                 return false;
             }
 
@@ -472,12 +465,29 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
             }
 
             return true;
-        })
-    ), [
+        });
+
+        return filteredItems.sort((firstItem, secondItem) => {
+            const firstDateTime = getApplicationDateTimeRange(firstItem.raw).startDateTime?.getTime();
+            const secondDateTime = getApplicationDateTimeRange(secondItem.raw).startDateTime?.getTime();
+
+            if (firstDateTime == null) {
+                return secondDateTime == null ? 0 : 1;
+            }
+            if (secondDateTime == null) {
+                return -1;
+            }
+
+            return dateTimeSortDirection === 'asc'
+                ? firstDateTime - secondDateTime
+                : secondDateTime - firstDateTime;
+        });
+    }, [
         approvalList,
         dateFrom,
         dateTo,
-        departmentFilter,
+        dateTimeSortDirection,
+        applicationTypeFilter,
         leaveTypeCodeSet,
         overtimeTypeCodeSet,
         requestTypeFilter,
@@ -485,9 +495,16 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         statusFilter,
     ]);
 
-    const selectedDepartmentOption = useMemo(() => (
-        departmentOptions.find((department) => department.name === departmentFilter) || null
-    ), [departmentFilter, departmentOptions]);
+    const applicationTypeOptions = useMemo(() => (
+        Array.from(
+            new Map(
+                approvalList
+                    .filter((item) => item.typeCode)
+                    .map((item) => [item.typeCode, item.type])
+            ),
+            ([value, label]) => ({ value, label })
+        ).sort((first, second) => first.label.localeCompare(second.label, 'zh-Hant'))
+    ), [approvalList]);
 
     useEffect(() => {
         if (!didMountFilterResetRef.current) {
@@ -496,18 +513,19 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         }
 
         setCurrentPage(1);
-    }, [departmentFilter, statusFilter, requestTypeFilter, searchInput, dateFrom, dateTo, pageSize]);
+    }, [applicationTypeFilter, statusFilter, requestTypeFilter, searchInput, dateFrom, dateTo, dateTimeSortDirection, pageSize]);
 
     useEffect(() => {
         window.sessionStorage.setItem(
             APPROVAL_LIST_STATE_STORAGE_KEY,
             JSON.stringify({
-                departmentFilter,
+                applicationTypeFilter,
                 statusFilter,
                 requestTypeFilter,
                 searchInput,
                 dateFrom,
                 dateTo,
+                dateTimeSortDirection,
                 pageSize,
                 currentPage,
             })
@@ -516,7 +534,8 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         currentPage,
         dateFrom,
         dateTo,
-        departmentFilter,
+        dateTimeSortDirection,
+        applicationTypeFilter,
         pageSize,
         requestTypeFilter,
         searchInput,
@@ -561,7 +580,6 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         const category = requestTypeFilter === 'all' ? '' : requestTypeFilter;
         const exportUrl = getHrApplicationExportUrl({
             status: STATUS_QUERY_MAP[statusFilter],
-            deptNo: selectedDepartmentOption?.deptNo || '',
             category,
             from: dateFrom,
             to: dateTo,
@@ -644,6 +662,45 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
         navigate(`/approvals/detail?seqNo=${encodeURIComponent(item.seqNo)}`, {
             state: { seqNo: item.seqNo, application: item.raw },
         });
+    };
+
+    const handlePayrollRecordedChange = async (item, recorded) => {
+        if (!item.seqNo || updatingPayrollSeqNos.has(item.seqNo)) {
+            return;
+        }
+
+        setUpdatingPayrollSeqNos((current) => new Set(current).add(item.seqNo));
+        try {
+            const response = await updateHrApplicationPayroll({
+                seqNos: [item.seqNo],
+                recorded,
+            });
+            if (!response?.success) {
+                throw new Error(response?.error || '薪資登錄狀態更新失敗');
+            }
+
+            setApprovalList((current) => current.map((approval) => (
+                approval.seqNo === item.seqNo
+                    ? {
+                        ...approval,
+                        payrollRecorded: recorded,
+                        raw: { ...approval.raw, payrollRecorded: recorded },
+                    }
+                    : approval
+            )));
+        } catch (error) {
+            void Swal.fire({
+                icon: 'error',
+                title: '更新失敗',
+                text: error instanceof Error ? error.message : '無法更新薪資登錄狀態',
+            });
+        } finally {
+            setUpdatingPayrollSeqNos((current) => {
+                const next = new Set(current);
+                next.delete(item.seqNo);
+                return next;
+            });
+        }
     };
 
     const getStatusClassName = (item) => {
@@ -802,15 +859,15 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                                 </div>
                             </div>
                             <div className="flex min-w-0 flex-col gap-1">
-                                <label className="text-xs text-secondary whitespace-nowrap">部門</label>
+                                <label className="text-xs text-secondary whitespace-nowrap">申請類型</label>
                                 <select
-                                    value={departmentFilter}
-                                    onChange={(event) => setDepartmentFilter(event.target.value)}
+                                    value={applicationTypeFilter}
+                                    onChange={(event) => setApplicationTypeFilter(event.target.value)}
                                     className="h-10 w-full min-w-0 border border-outline-variant rounded-lg px-3 text-sm bg-surface-container-lowest focus:ring-1 focus:ring-primary outline-none"
                                 >
-                                    <option value="all">所有部門</option>
-                                    {departmentOptions.map((department) => (
-                                        <option key={`${department.deptNo}-${department.name}`} value={department.name}>{department.name}</option>
+                                    <option value="all">所有申請類型</option>
+                                    {applicationTypeOptions.map((option) => (
+                                        <option key={option.value} value={option.value}>{option.label}</option>
                                     ))}
                                 </select>
                             </div>
@@ -850,10 +907,20 @@ export default function ApprovalList({ forceShowAttachmentColumn = false }) {
                     items={paginatedApprovalList}
                     loading={loading}
                     showAttachmentColumn={showAttachmentColumn}
+                    showPayrollColumn={isAdmin}
+                    isAdmin={isAdmin}
                     isManager={isManager}
+                    dateTimeSortDirection={dateTimeSortDirection}
+                    onDateTimeSortChange={() => {
+                        setDateTimeSortDirection((currentDirection) => (
+                            currentDirection === 'asc' ? 'desc' : 'asc'
+                        ));
+                    }}
                     onRowClick={handleRowClick}
                     getAgentStatusClassName={getAgentStatusStyles}
                     getApplicationStatusClassName={getStatusClassName}
+                    onPayrollRecordedChange={handlePayrollRecordedChange}
+                    updatingPayrollSeqNos={updatingPayrollSeqNos}
                 />
 
                 <div className="px-6 py-4 bg-surface-container-low border-t border-outline-variant flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

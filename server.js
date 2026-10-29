@@ -332,6 +332,13 @@ app.get('/app-api/hr/applications', (req, res) => {
   return forwardJson(res, `/api/hr/application/all${query ? `?${query}` : ''}`);
 });
 
+app.patch('/app-api/hr/application/payroll', (req, res) => {
+  return forwardJson(res, '/api/hr/application/payroll', {
+    method: 'PATCH',
+    body: JSON.stringify(req.body),
+  });
+});
+
 app.get('/app-api/hr/application/export', (req, res) => {
   const searchParams = new URLSearchParams();
   ['status', 'deptNo', 'category', 'from', 'to', 'agentEmpNo'].forEach((key) => {

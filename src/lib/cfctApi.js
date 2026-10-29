@@ -78,6 +78,13 @@ export function getHrApplicationList(filters = {}) {
   return request(`/app-api/hr/applications?${searchParams.toString()}`);
 }
 
+export function updateHrApplicationPayroll(payload) {
+  return request('/app-api/hr/application/payroll', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getHrApplicationExportUrl(filters = {}) {
   const searchParams = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
